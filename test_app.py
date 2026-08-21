@@ -22,7 +22,7 @@ def get_taiwan_stock_name(stock_id):
         pass
     return f"股票 {stock_id}"
 
-# 3. K 線與幾何型態全域自動識別 (搜尋整個時間區間)
+# 3. K 線與幾何型態全域自動識別
 def detect_patterns(df):
     patterns = []
     prices = df['Close'].values
@@ -35,13 +35,10 @@ def detect_patterns(df):
     if n < 20:
         return patterns
 
-    # 尋找全圖表的局部高點與低點
     peaks, _ = find_peaks(highs, distance=5)
     troughs, _ = find_peaks(-lows, distance=5)
 
-    # ----------------------------------------------------
-    # 1. W底 (Double Bottom) - 全域掃描
-    # ----------------------------------------------------
+    # 1. W底 (Double Bottom)
     for i in range(len(troughs) - 1):
         t1, t2 = troughs[i], troughs[i+1]
         l1, l2 = lows[t1], lows[t2]
@@ -64,9 +61,7 @@ def detect_patterns(df):
                     "annotations": [{"x": dates[t2], "y": l2, "text": "W底", "color": "#00FF7F"}]
                 })
 
-    # ----------------------------------------------------
-    # 2. M頭 (Double Top) - 全域掃描
-    # ----------------------------------------------------
+    # 2. M頭 (Double Top)
     for i in range(len(peaks) - 1):
         p1, p2 = peaks[i], peaks[i+1]
         h1, h2 = highs[p1], highs[p2]
@@ -89,9 +84,7 @@ def detect_patterns(df):
                     "annotations": [{"x": dates[p2], "y": h2, "text": "M頭", "color": "#FF4500"}]
                 })
 
-    # ----------------------------------------------------
-    # 3. 頭肩底 (Head & Shoulders Bottom) - 全域掃描
-    # ----------------------------------------------------
+    # 3. 頭肩底
     for i in range(len(troughs) - 2):
         t1, t2, t3 = troughs[i], troughs[i+1], troughs[i+2]
         l1, l2, l3 = lows[t1], lows[t2], lows[t3]
@@ -114,9 +107,7 @@ def detect_patterns(df):
                     "annotations": [{"x": dates[t2], "y": l2, "text": "頭肩底", "color": "#00FFFF"}]
                 })
 
-    # ----------------------------------------------------
-    # 4. 頭肩頂 (Head & Shoulders Top) - 全域掃描
-    # ----------------------------------------------------
+    # 4. 頭肩頂
     for i in range(len(peaks) - 2):
         p1, p2, p3 = peaks[i], peaks[i+1], peaks[i+2]
         h1, h2, h3 = highs[p1], highs[p2], highs[p3]
@@ -139,9 +130,7 @@ def detect_patterns(df):
                     "annotations": [{"x": dates[p2], "y": h2, "text": "頭肩頂", "color": "#FF1493"}]
                 })
 
-    # ----------------------------------------------------
-    # 5. 杯柄型態 (Cup & Handle) - 全域掃描
-    # ----------------------------------------------------
+    # 5. 杯柄型態 (Cup & Handle)
     for i in range(len(peaks) - 1):
         p1, p2 = peaks[i], peaks[i+1]
         if 20 <= (p2 - p1) <= 120 and abs(highs[p1] - highs[p2]) / highs[p1] < 0.05:
@@ -164,16 +153,13 @@ def detect_patterns(df):
                         "annotations": [{"x": dates[tc], "y": lows[tc], "text": "杯柄型態", "color": "#00E5FF"}]
                     })
 
-    # ----------------------------------------------------
-    # 6. K線訊號：多頭/空頭吞噬 - 全域掃描
-    # ----------------------------------------------------
+    # 6. K線吞噬訊號
     for i in range(1, n):
         prev_o, prev_c = opens[i-1], prices[i-1]
         curr_o, curr_c = opens[i], prices[i]
         
-        # 多頭吞噬
         if prev_c < prev_o and curr_c > curr_o and curr_o <= prev_c and curr_c >= prev_o:
-            if (curr_c - curr_o) / curr_o > 0.02: # 確保有一定實體幅度
+            if (curr_c - curr_o) / curr_o > 0.02:
                 patterns.append({
                     "name": "多頭吞噬",
                     "type": "看多 (K線)",
@@ -183,7 +169,6 @@ def detect_patterns(df):
                     "neck_x": [], "neck_y": [],
                     "annotations": [{"x": dates[i], "y": lows[i], "text": "多頭吞噬", "color": "#00FF7F"}]
                 })
-        # 空頭吞噬
         elif prev_c > prev_o and curr_c < curr_o and curr_o >= prev_c and curr_c <= prev_o:
             if (curr_o - curr_c) / curr_o > 0.02:
                 patterns.append({
@@ -196,7 +181,6 @@ def detect_patterns(df):
                     "annotations": [{"x": dates[i], "y": highs[i], "text": "空頭吞噬", "color": "#FF4500"}]
                 })
 
-    # 將搜尋到的所有型態按日期「由新到舊」排序
     patterns = sorted(patterns, key=lambda x: x["date"], reverse=True)
     return patterns
 
@@ -207,7 +191,7 @@ ticker = f"{stock_id}.TW"
 
 st.sidebar.markdown("---")
 st.sidebar.header("📅 自訂歷史分析區間")
-default_start = date.today() - timedelta(days=365*3) # 預設改為 3 年區間
+default_start = date.today() - timedelta(days=365*3)
 start_date_input = st.sidebar.date_input("開始日期", value=default_start, min_value=date(2010, 1, 1), max_value=date.today())
 end_date_input = st.sidebar.date_input("結束日期", value=date.today(), min_value=date(2010, 1, 1), max_value=date.today())
 
@@ -248,7 +232,7 @@ if st.sidebar.button("開始分析"):
                     df[f'MA_{ma3_val}'] = df['Close'].rolling(window=ma3_val).mean()
                     df[f'MA_{ma4_val}'] = df['Close'].rolling(window=ma4_val).mean()
 
-                    # ---- 核心價量指標 ----
+                    # 核心指標
                     st.subheader(f"📊 {company_name} ({stock_id}) 核心價量指標 ({start_str} ~ {end_str})")
                     
                     latest_close = float(df["Close"].iloc[-1])
@@ -267,18 +251,13 @@ if st.sidebar.button("開始分析"):
                     col3.metric("最新成交量 (張)", f"{latest_vol:,}", f"{vol_change:+,} 張 ({vol_pct_change:+.1f}%)")
                     col4.metric("區間最高價", f"${df['High'].max():.2f}")
 
-                    # 日期轉換為字串
                     df.index = df.index.strftime('%Y-%m-%d')
-
-                    # 全域型態識別
                     detected_patterns = detect_patterns(df)
 
-                    # ---- 型態資訊提示與歷程列表 ----
                     st.markdown("---")
                     st.subheader(f"🔍 AI 歷史掃描：在該區間內共偵測出 {len(detected_patterns)} 個關鍵型態訊號")
                     
                     if detected_patterns:
-                        # 展開前 15 個最新的型態細節
                         for p in detected_patterns[:15]:
                             if "看多" in p["type"]:
                                 st.success(f"**【{p['name']}】** ({p['type']}) — {p['detail']}")
@@ -289,7 +268,7 @@ if st.sidebar.button("開始分析"):
                     else:
                         st.warning("在選擇的時間區間內未偵測到明顯的幾何與 K 線型態。")
 
-                    # ---- 圖表繪製 ----
+                    # ---- 圖表繪製與十字游標設定 ----
                     st.subheader(f"📈 {start_str} ~ {end_str} 全圖表走勢與歷史型態畫線標註")
                     
                     fig = make_subplots(
@@ -299,78 +278,84 @@ if st.sidebar.button("開始分析"):
                         row_heights=[0.7, 0.3]
                     )
 
-                    # 1. 主圖：K線
+                    # 1. K線
                     fig.add_trace(go.Candlestick(
                         x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
                         increasing_line_color='red', decreasing_line_color='green', name="K線"
                     ), row=1, col=1)
 
-                    # 2. 主圖：均線
+                    # 2. 均線
                     fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma1_val}'], mode='lines', name=f'{ma1_val}日均線', line=dict(color='orange', width=1)), row=1, col=1)
                     fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma2_val}'], mode='lines', name=f'{ma2_val}日均線', line=dict(color='cyan', width=1)), row=1, col=1)
                     fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma3_val}'], mode='lines', name=f'{ma3_val}日均線', line=dict(color='yellow', width=1.2)), row=1, col=1)
                     fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma4_val}'], mode='lines', name=f'{ma4_val}日均線', line=dict(color='magenta', width=1.2)), row=1, col=1)
 
-                    # 3. 型態骨架與頸線全圖標註 (限制標註前 10 個幾何型態避免圖表過度雜亂)
+                    # 3. 型態骨架標註
                     geo_patterns = [p for p in detected_patterns if "K線" not in p["type"]][:10]
                     for p in geo_patterns:
                         if p["skeleton_x"]:
                             fig.add_trace(go.Scatter(
-                                x=p["skeleton_x"], 
-                                y=p["skeleton_y"], 
-                                mode='lines+markers',
-                                name=f"{p['name']}",
+                                x=p["skeleton_x"], y=p["skeleton_y"], 
+                                mode='lines+markers', name=f"{p['name']}",
                                 line=dict(color=p["skeleton_color"], width=2.5),
                                 marker=dict(size=6, color=p["skeleton_color"])
                             ), row=1, col=1)
 
                         if p["neck_x"]:
                             fig.add_trace(go.Scatter(
-                                x=p["neck_x"], 
-                                y=p["neck_y"], 
-                                mode='lines',
-                                name=f"{p['name']} 頸線",
+                                x=p["neck_x"], y=p["neck_y"], 
+                                mode='lines', name=f"{p['name']} 頸線",
                                 line=dict(color=p["neck_color"], width=1.8, dash="dash")
                             ), row=1, col=1)
 
                         for ann in p.get("annotations", []):
                             fig.add_annotation(
-                                x=ann["x"], y=ann["y"],
-                                text=ann["text"],
-                                showarrow=True,
-                                arrowhead=2,
-                                arrowsize=1,
-                                arrowcolor=ann["color"],
-                                font=dict(color="#FFFFFF", size=10),
-                                bgcolor=ann["color"],
+                                x=ann["x"], y=ann["y"], text=ann["text"],
+                                showarrow=True, arrowhead=2, arrowsize=1, arrowcolor=ann["color"],
+                                font=dict(color="#FFFFFF", size=10), bgcolor=ann["color"],
                                 row=1, col=1
                             )
 
-                    # 4. 副圖：成交量
+                    # 4. 成交量
                     colors = ['red' if c >= o else 'green' for c, o in zip(df['Close'], df['Open'])]
                     fig.add_trace(go.Bar(
-                        x=df.index, 
-                        y=df['Volume'] / 1000, 
-                        name="成交量(張)", 
-                        marker_color=colors
+                        x=df.index, y=df['Volume'] / 1000, 
+                        name="成交量(張)", marker_color=colors
                     ), row=2, col=1)
 
+                    # ---- 關鍵更新：啟用十字游標 (Crosshair) 與動態對齊資訊卡 ----
                     fig.update_layout(
-                        title=f"{company_name} ({stock_id}) 技術指標與歷史 K 線幾何型態全圖標註",
+                        title=f"{company_name} ({stock_id}) 技術指標與歷史 K 線型態圖",
                         yaxis_title="股價 (TWD)",
                         yaxis2_title="成交量 (張)",
                         xaxis_rangeslider_visible=False,
                         template="plotly_dark",
                         height=750,
+                        hovermode="x unified",  # 鼠標移到某個日期時，自動整合該日期所有數據顯示
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                     )
 
+                    # 設定 X 軸與 Y 軸的十字對準虛線 (Crosshair)
                     fig.update_xaxes(
                         type='category', 
                         tickangle=-45,
-                        nticks=12
+                        nticks=12,
+                        showspikes=True,       # 開啟 X 軸導引線
+                        spikemode='across',    # 貫穿整個高低區塊
+                        spikesnap='cursor',    # 貼合滑鼠
+                        spikethickness=1,
+                        spikecolor='#888888',
+                        spikedash='dash'       # 虛線樣式
                     )
-                    
+
+                    fig.update_yaxes(
+                        showspikes=True,       # 開啟 Y 軸導引線
+                        spikemode='across',
+                        spikethickness=1,
+                        spikecolor='#888888',
+                        spikedash='dash'
+                    )
+
                     st.plotly_chart(fig, use_container_width=True)
 
             except Exception as e:
