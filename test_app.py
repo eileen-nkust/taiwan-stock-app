@@ -10,8 +10,8 @@ from scipy.signal import find_peaks
 
 # 1. 網頁頁面設定
 st.set_page_config(page_title="AI 台股量化分析看板", layout="wide")
-st.title("📈 AI 智理財：台股多重 K 線與幾何型態繪圖系統")
-st.write("輸入台股股票代碼，可自由切換**自訂日期區間**，即時計算動態均線、價量結構與 **10 大 K 線/幾何型態繪圖標註**。")
+st.title("📈 AI 智理財：全時間區間歷史 K 線與幾何型態掃描系統")
+st.write("輸入台股代碼與自訂日期區間，AI 演算法將**全域掃描該區間內所有出現過的經典型態**與視覺化繪圖。")
 
 # 2. 自動抓取中文名稱的函式
 def get_taiwan_stock_name(stock_id):
@@ -22,7 +22,7 @@ def get_taiwan_stock_name(stock_id):
         pass
     return f"股票 {stock_id}"
 
-# 3. K 線與幾何型態自動識別 (含 10 大進階型態)
+# 3. K 線與幾何型態全域自動識別 (搜尋整個時間區間)
 def detect_patterns(df):
     patterns = []
     prices = df['Close'].values
@@ -32,281 +32,172 @@ def detect_patterns(df):
     dates = df.index.tolist()
     n = len(prices)
 
-    if n < 30:
+    if n < 20:
         return patterns
 
-    # 尋找局部高點與低點
-    peaks, _ = find_peaks(highs, distance=7)
-    troughs, _ = find_peaks(-lows, distance=7)
-    latest_close = prices[-1]
+    # 尋找全圖表的局部高點與低點
+    peaks, _ = find_peaks(highs, distance=5)
+    troughs, _ = find_peaks(-lows, distance=5)
 
     # ----------------------------------------------------
-    # 1. 頭肩底 (Head & Shoulders Bottom) - 看多
+    # 1. W底 (Double Bottom) - 全域掃描
     # ----------------------------------------------------
-    if len(troughs) >= 3:
-        t1, t2, t3 = troughs[-3], troughs[-2], troughs[-1]
+    for i in range(len(troughs) - 1):
+        t1, t2 = troughs[i], troughs[i+1]
+        l1, l2 = lows[t1], lows[t2]
+        if abs(l1 - l2) / min(l1, l2) < 0.04 and (t2 - t1) <= 60:
+            mid_peaks = [p for p in peaks if t1 < p < t2]
+            if mid_peaks:
+                p_mid = mid_peaks[0]
+                neck_line = highs[p_mid]
+                patterns.append({
+                    "name": "W底 (Double Bottom)",
+                    "type": "看多",
+                    "date": dates[t2],
+                    "detail": f"日期: {dates[t1]} ~ {dates[t2]} | 第一底 ${l1:.1f}, 第二底 ${l2:.1f}, 頸線 ${neck_line:.1f}",
+                    "skeleton_x": [dates[t1], dates[p_mid], dates[t2]],
+                    "skeleton_y": [l1, neck_line, l2],
+                    "skeleton_color": "#00FF7F",
+                    "neck_x": [dates[t1], dates[min(t2+10, n-1)]],
+                    "neck_y": [neck_line, neck_line],
+                    "neck_color": "#1E90FF",
+                    "annotations": [{"x": dates[t2], "y": l2, "text": "W底", "color": "#00FF7F"}]
+                })
+
+    # ----------------------------------------------------
+    # 2. M頭 (Double Top) - 全域掃描
+    # ----------------------------------------------------
+    for i in range(len(peaks) - 1):
+        p1, p2 = peaks[i], peaks[i+1]
+        h1, h2 = highs[p1], highs[p2]
+        if abs(h1 - h2) / min(h1, h2) < 0.04 and (p2 - p1) <= 60:
+            mid_troughs = [t for t in troughs if p1 < t < p2]
+            if mid_troughs:
+                t_mid = mid_troughs[0]
+                neck_line = lows[t_mid]
+                patterns.append({
+                    "name": "M頭 (Double Top)",
+                    "type": "看空",
+                    "date": dates[p2],
+                    "detail": f"日期: {dates[p1]} ~ {dates[p2]} | 第一頂 ${h1:.1f}, 第二頂 ${h2:.1f}, 頸線 ${neck_line:.1f}",
+                    "skeleton_x": [dates[p1], dates[t_mid], dates[p2]],
+                    "skeleton_y": [h1, neck_line, h2],
+                    "skeleton_color": "#FF4500",
+                    "neck_x": [dates[p1], dates[min(p2+10, n-1)]],
+                    "neck_y": [neck_line, neck_line],
+                    "neck_color": "#FF4500",
+                    "annotations": [{"x": dates[p2], "y": h2, "text": "M頭", "color": "#FF4500"}]
+                })
+
+    # ----------------------------------------------------
+    # 3. 頭肩底 (Head & Shoulders Bottom) - 全域掃描
+    # ----------------------------------------------------
+    for i in range(len(troughs) - 2):
+        t1, t2, t3 = troughs[i], troughs[i+1], troughs[i+2]
         l1, l2, l3 = lows[t1], lows[t2], lows[t3]
         if l2 < l1 and l2 < l3 and abs(l1 - l3) / min(l1, l3) < 0.06:
             mid_p1 = [p for p in peaks if t1 < p < t2]
             mid_p2 = [p for p in peaks if t2 < p < t3]
             if mid_p1 and mid_p2:
                 p1, p2 = mid_p1[0], mid_p2[0]
-                h1, h2 = highs[p1], highs[p2]
                 patterns.append({
-                    "name": "頭肩底 (Head & Shoulders Bottom)",
+                    "name": "頭肩底 (Head & Shoulders)",
                     "type": "看多",
-                    "detail": f"左肩: ${l1:.1f}, 頭部: ${l2:.1f}, 右肩: ${l3:.1f}",
-                    "skeleton_x": [dates[t1], dates[p1], dates[t2], dates[p2], dates[t3], dates[-1]],
-                    "skeleton_y": [l1, h1, l2, h2, l3, latest_close],
+                    "date": dates[t3],
+                    "detail": f"日期: {dates[t1]} ~ {dates[t3]} | 左肩 ${l1:.1f}, 頭部 ${l2:.1f}, 右肩 ${l3:.1f}",
+                    "skeleton_x": [dates[t1], dates[p1], dates[t2], dates[p2], dates[t3]],
+                    "skeleton_y": [l1, highs[p1], l2, highs[p2], l3],
                     "skeleton_color": "#00FFFF",
-                    "neck_x": [dates[p1], dates[-1]],
-                    "neck_y": [h1, h2 if p1==p2 else h1 + (h2-h1)*(n-1-p1)/(p2-p1)],
+                    "neck_x": [dates[p1], dates[p2]],
+                    "neck_y": [highs[p1], highs[p2]],
                     "neck_color": "#1E90FF",
-                    "annotations": [
-                        {"x": dates[t1], "y": l1, "text": "左肩", "color": "#00FFFF"},
-                        {"x": dates[t2], "y": l2, "text": "頭部 (最低)", "color": "#00FFFF"},
-                        {"x": dates[t3], "y": l3, "text": "右肩", "color": "#00FFFF"}
-                    ]
+                    "annotations": [{"x": dates[t2], "y": l2, "text": "頭肩底", "color": "#00FFFF"}]
                 })
 
     # ----------------------------------------------------
-    # 2. 頭肩頂 (Head & Shoulders Top) - 看空
+    # 4. 頭肩頂 (Head & Shoulders Top) - 全域掃描
     # ----------------------------------------------------
-    if len(peaks) >= 3:
-        p1, p2, p3 = peaks[-3], peaks[-2], peaks[-1]
+    for i in range(len(peaks) - 2):
+        p1, p2, p3 = peaks[i], peaks[i+1], peaks[i+2]
         h1, h2, h3 = highs[p1], highs[p2], highs[p3]
         if h2 > h1 and h2 > h3 and abs(h1 - h3) / min(h1, h3) < 0.06:
             mid_t1 = [t for t in troughs if p1 < t < p2]
             mid_t2 = [t for t in troughs if p2 < t < p3]
             if mid_t1 and mid_t2:
                 t1_idx, t2_idx = mid_t1[0], mid_t2[0]
-                l1_val, l2_val = lows[t1_idx], lows[t2_idx]
                 patterns.append({
                     "name": "頭肩頂 (Head & Shoulders Top)",
                     "type": "看空",
-                    "detail": f"左頭頂: ${h1:.1f}, 頭部最高: ${h2:.1f}, 右頭頂: ${h3:.1f}",
-                    "skeleton_x": [dates[p1], dates[t1_idx], dates[p2], dates[t2_idx], dates[p3], dates[-1]],
-                    "skeleton_y": [h1, l1_val, h2, l2_val, h3, latest_close],
+                    "date": dates[p3],
+                    "detail": f"日期: {dates[p1]} ~ {dates[p3]} | 左肩 ${h1:.1f}, 頭部 ${h2:.1f}, 右肩 ${h3:.1f}",
+                    "skeleton_x": [dates[p1], dates[t1_idx], dates[p2], dates[t2_idx], dates[p3]],
+                    "skeleton_y": [h1, lows[t1_idx], h2, lows[t2_idx], h3],
                     "skeleton_color": "#FF1493",
-                    "neck_x": [dates[t1_idx], dates[-1]],
-                    "neck_y": [l1_val, l2_val],
+                    "neck_x": [dates[t1_idx], dates[t2_idx]],
+                    "neck_y": [lows[t1_idx], lows[t2_idx]],
                     "neck_color": "#FF4500",
-                    "annotations": [
-                        {"x": dates[p1], "y": h1, "text": "左肩", "color": "#FF1493"},
-                        {"x": dates[p2], "y": h2, "text": "頭部 (最高)", "color": "#FF1493"},
-                        {"x": dates[p3], "y": h3, "text": "右肩", "color": "#FF1493"}
-                    ]
+                    "annotations": [{"x": dates[p2], "y": h2, "text": "頭肩頂", "color": "#FF1493"}]
                 })
 
     # ----------------------------------------------------
-    # 3. 杯柄型態 (Cup & Handle) - 看多 (新增)
+    # 5. 杯柄型態 (Cup & Handle) - 全域掃描
     # ----------------------------------------------------
-    if len(peaks) >= 2 and len(troughs) >= 2:
-        p1, p2 = peaks[-2], peaks[-1]
-        t_cup = [t for t in troughs if p1 < t < p2]
-        if t_cup and abs(highs[p1] - highs[p2]) / highs[p1] < 0.04:
-            tc = t_cup[0]
-            cup_depth = (highs[p1] - lows[tc]) / highs[p1]
-            if 0.12 < cup_depth < 0.38 and lows[troughs[-1]] > lows[tc]:
-                patterns.append({
-                    "name": "杯柄型態 (Cup & Handle)",
-                    "type": "強烈看多",
-                    "detail": f"杯沿高點: ${highs[p1]:.1f}, 杯底: ${lows[tc]:.1f}, 右側杯柄拉回整理中",
-                    "skeleton_x": [dates[p1], dates[tc], dates[p2], dates[troughs[-1]], dates[-1]],
-                    "skeleton_y": [highs[p1], lows[tc], highs[p2], lows[troughs[-1]], latest_close],
-                    "skeleton_color": "#00E5FF",
-                    "neck_x": [dates[p1], dates[-1]],
-                    "neck_y": [highs[p1], highs[p1]],
-                    "neck_color": "#00E5FF",
-                    "annotations": [
-                        {"x": dates[tc], "y": lows[tc], "text": "U型杯底", "color": "#00E5FF"},
-                        {"x": dates[troughs[-1]], "y": lows[troughs[-1]], "text": "杯柄整理", "color": "#00E5FF"}
-                    ]
-                })
+    for i in range(len(peaks) - 1):
+        p1, p2 = peaks[i], peaks[i+1]
+        if 20 <= (p2 - p1) <= 120 and abs(highs[p1] - highs[p2]) / highs[p1] < 0.05:
+            t_cup = [t for t in troughs if p1 < t < p2]
+            if t_cup:
+                tc = min(t_cup, key=lambda x: lows[x])
+                cup_depth = (highs[p1] - lows[tc]) / highs[p1]
+                if 0.10 < cup_depth < 0.40:
+                    patterns.append({
+                        "name": "杯柄型態 (Cup & Handle)",
+                        "type": "強烈看多",
+                        "date": dates[p2],
+                        "detail": f"日期: {dates[p1]} ~ {dates[p2]} | 杯沿 ${highs[p1]:.1f}, 杯底 ${lows[tc]:.1f}",
+                        "skeleton_x": [dates[p1], dates[tc], dates[p2]],
+                        "skeleton_y": [highs[p1], lows[tc], highs[p2]],
+                        "skeleton_color": "#00E5FF",
+                        "neck_x": [dates[p1], dates[min(p2+15, n-1)]],
+                        "neck_y": [highs[p1], highs[p1]],
+                        "neck_color": "#00E5FF",
+                        "annotations": [{"x": dates[tc], "y": lows[tc], "text": "杯柄型態", "color": "#00E5FF"}]
+                    })
 
     # ----------------------------------------------------
-    # 4. W底 (Double Bottom) - 看多
+    # 6. K線訊號：多頭/空頭吞噬 - 全域掃描
     # ----------------------------------------------------
-    if len(troughs) >= 2:
-        t1, t2 = troughs[-2], troughs[-1]
-        l1, l2 = lows[t1], lows[t2]
-        if abs(l1 - l2) / min(l1, l2) < 0.04:
-            mid_peaks = [p for p in peaks if t1 < p < t2]
-            if mid_peaks:
-                p_mid = mid_peaks[0]
-                neck_line = highs[p_mid]
-                status = "🟢 突破頸線" if latest_close > neck_line else "🟡 醞釀中"
-                patterns.append({
-                    "name": "W底 (Double Bottom)",
-                    "type": "看多",
-                    "detail": f"底1: ${l1:.1f}, 底2: ${l2:.1f}, 頸線: ${neck_line:.1f} | 狀態: {status}",
-                    "skeleton_x": [dates[t1], dates[p_mid], dates[t2], dates[-1]],
-                    "skeleton_y": [l1, neck_line, l2, latest_close],
-                    "skeleton_color": "#00FF7F",
-                    "neck_x": [dates[t1], dates[-1]],
-                    "neck_y": [neck_line, neck_line],
-                    "neck_color": "#1E90FF",
-                    "annotations": [
-                        {"x": dates[t1], "y": l1, "text": "第一底", "color": "#00FF7F"},
-                        {"x": dates[t2], "y": l2, "text": "第二底", "color": "#00FF7F"},
-                        {"x": dates[p_mid], "y": neck_line, "text": f"頸線 ${neck_line:.1f}", "color": "#1E90FF"}
-                    ]
-                })
-
-    # ----------------------------------------------------
-    # 5. M頭 (Double Top) - 看空
-    # ----------------------------------------------------
-    if len(peaks) >= 2:
-        p1, p2 = peaks[-2], peaks[-1]
-        h1, h2 = highs[p1], highs[p2]
-        if abs(h1 - h2) / min(h1, h2) < 0.04:
-            mid_troughs = [t for t in troughs if p1 < t < p2]
-            if mid_troughs:
-                t_mid = mid_troughs[0]
-                neck_line = lows[t_mid]
-                status = "🔴 跌破頸線" if latest_close < neck_line else "🟡 醞釀中"
-                patterns.append({
-                    "name": "M頭 (Double Top)",
-                    "type": "看空",
-                    "detail": f"頂1: ${h1:.1f}, 頂2: ${h2:.1f}, 頸線: ${neck_line:.1f} | 狀態: {status}",
-                    "skeleton_x": [dates[p1], dates[t_mid], dates[p2], dates[-1]],
-                    "skeleton_y": [h1, neck_line, h2, latest_close],
-                    "skeleton_color": "#FF4500",
-                    "neck_x": [dates[p1], dates[-1]],
-                    "neck_y": [neck_line, neck_line],
-                    "neck_color": "#FF4500",
-                    "annotations": [
-                        {"x": dates[p1], "y": h1, "text": "第一頂", "color": "#FF4500"},
-                        {"x": dates[p2], "y": h2, "text": "第二頂", "color": "#FF4500"},
-                        {"x": dates[t_mid], "y": neck_line, "text": f"頸線 ${neck_line:.1f}", "color": "#FF4500"}
-                    ]
-                })
-
-    # ----------------------------------------------------
-    # 6. 三重底 (Triple Bottom) - 看多
-    # ----------------------------------------------------
-    if len(troughs) >= 3:
-        t1, t2, t3 = troughs[-3], troughs[-2], troughs[-1]
-        l1, l2, l3 = lows[t1], lows[t2], lows[t3]
-        max_l = max(l1, l2, l3)
-        min_l = min(l1, l2, l3)
-        if (max_l - min_l) / min_l < 0.03:
-            patterns.append({
-                "name": "三重底 (Triple Bottom)",
-                "type": "強烈看多",
-                "detail": f"三底均於 ${min_l:.1f} ~ ${max_l:.1f} 獲得強烈支撐",
-                "skeleton_x": [dates[t1], dates[t2], dates[t3]],
-                "skeleton_y": [l1, l2, l3],
-                "skeleton_color": "#32CD32",
-                "neck_x": [dates[t1], dates[-1]],
-                "neck_y": [max_l, max_l],
-                "neck_color": "#32CD32",
-                "annotations": [
-                    {"x": dates[t2], "y": l2, "text": "三重底築底成功", "color": "#32CD32"}
-                ]
-            })
-
-    # ----------------------------------------------------
-    # 7. 上升三角 (Ascending Triangle) - 看多
-    # ----------------------------------------------------
-    if len(peaks) >= 2 and len(troughs) >= 2:
-        p1, p2 = peaks[-2], peaks[-1]
-        t1, t2 = troughs[-2], troughs[-1]
-        if abs(highs[p1] - highs[p2]) / highs[p1] < 0.025 and lows[t2] > lows[t1] * 1.02:
-            patterns.append({
-                "name": "上升三角 (Ascending Triangle)",
-                "type": "看多",
-                "detail": f"高點平齊阻力: ${highs[p1]:.1f}, 低點持續墊高 (${lows[t1]:.1f} -> ${lows[t2]:.1f})",
-                "skeleton_x": [dates[t1], dates[p1], dates[t2], dates[p2]],
-                "skeleton_y": [lows[t1], highs[p1], lows[t2], highs[p2]],
-                "skeleton_color": "#FFD700",
-                "neck_x": [dates[p1], dates[-1]],
-                "neck_y": [highs[p1], highs[p1]],
-                "neck_color": "#FFD700",
-                "annotations": [
-                    {"x": dates[p2], "y": highs[p2], "text": "高點壓力牆", "color": "#FFD700"},
-                    {"x": dates[t2], "y": lows[t2], "text": "低點墊高", "color": "#00FF7F"}
-                ]
-            })
-
-    # ----------------------------------------------------
-    # 8. 下降三角 (Descending Triangle) - 看空
-    # ----------------------------------------------------
-    if len(peaks) >= 2 and len(troughs) >= 2:
-        p1, p2 = peaks[-2], peaks[-1]
-        t1, t2 = troughs[-2], troughs[-1]
-        if abs(lows[t1] - lows[t2]) / lows[t1] < 0.025 and highs[p2] < highs[p1] * 0.98:
-            patterns.append({
-                "name": "下降三角 (Descending Triangle)",
-                "type": "看空",
-                "detail": f"低點水平支撐: ${lows[t1]:.1f}, 高點持續降低 (${highs[p1]:.1f} -> ${highs[p2]:.1f})",
-                "skeleton_x": [dates[p1], dates[t1], dates[p2], dates[t2]],
-                "skeleton_y": [highs[p1], lows[t1], highs[p2], lows[t2]],
-                "skeleton_color": "#FF6347",
-                "neck_x": [dates[t1], dates[-1]],
-                "neck_y": [lows[t1], lows[t1]],
-                "neck_color": "#FF6347",
-                "annotations": [
-                    {"x": dates[t2], "y": lows[t2], "text": "水平支撐線", "color": "#FF6347"},
-                    {"x": dates[p2], "y": highs[p2], "text": "高點降低", "color": "#FF4500"}
-                ]
-            })
-
-    # ----------------------------------------------------
-    # 9. K線訊號：多頭吞噬 / 空頭吞噬
-    # ----------------------------------------------------
-    for i in range(-5, -1):
+    for i in range(1, n):
         prev_o, prev_c = opens[i-1], prices[i-1]
         curr_o, curr_c = opens[i], prices[i]
         
+        # 多頭吞噬
         if prev_c < prev_o and curr_c > curr_o and curr_o <= prev_c and curr_c >= prev_o:
-            patterns.append({
-                "name": "多頭吞噬 (Bullish Engulfing)",
-                "type": "看多 (K線訊號)",
-                "detail": f"日期: {dates[i]}，長紅K完全包覆前一日黑K實體，為強烈止跌轉強訊號",
-                "skeleton_x": [], "skeleton_y": [],
-                "neck_x": [], "neck_y": [],
-                "annotations": [
-                    {"x": dates[i], "y": lows[i], "text": "多頭吞噬", "color": "#00FF7F"}
-                ]
-            })
-            break
-
+            if (curr_c - curr_o) / curr_o > 0.02: # 確保有一定實體幅度
+                patterns.append({
+                    "name": "多頭吞噬",
+                    "type": "看多 (K線)",
+                    "date": dates[i],
+                    "detail": f"日期: {dates[i]} | 長紅K完全包覆前日黑K",
+                    "skeleton_x": [], "skeleton_y": [],
+                    "neck_x": [], "neck_y": [],
+                    "annotations": [{"x": dates[i], "y": lows[i], "text": "多頭吞噬", "color": "#00FF7F"}]
+                })
+        # 空頭吞噬
         elif prev_c > prev_o and curr_c < curr_o and curr_o >= prev_c and curr_c <= prev_o:
-            patterns.append({
-                "name": "空頭吞噬 (Bearish Engulfing)",
-                "type": "看空 (K線訊號)",
-                "detail": f"日期: {dates[i]}，長黑K完全包覆前一日紅K實體，為強烈見頂轉弱訊號",
-                "skeleton_x": [], "skeleton_y": [],
-                "neck_x": [], "neck_y": [],
-                "annotations": [
-                    {"x": dates[i], "y": highs[i], "text": "空頭吞噬", "color": "#FF4500"}
-                ]
-            })
-            break
+            if (curr_o - curr_c) / curr_o > 0.02:
+                patterns.append({
+                    "name": "空頭吞噬",
+                    "type": "看空 (K線)",
+                    "date": dates[i],
+                    "detail": f"日期: {dates[i]} | 長黑K完全包覆前日紅K",
+                    "skeleton_x": [], "skeleton_y": [],
+                    "neck_x": [], "neck_y": [],
+                    "annotations": [{"x": dates[i], "y": highs[i], "text": "空頭吞噬", "color": "#FF4500"}]
+                })
 
-    # ----------------------------------------------------
-    # 10. 箱型整理 (Box Range)
-    # ----------------------------------------------------
-    recent_30_high = max(highs[-30:])
-    recent_30_low = min(lows[-30:])
-    box_range = (recent_30_high - recent_30_low) / recent_30_low
-    if box_range < 0.09:
-        patterns.append({
-            "name": "箱型整理 (Box)",
-            "type": "中立",
-            "detail": f"近 30 日於箱頂 ${recent_30_high:.1f} 與箱底 ${recent_30_low:.1f} 震盪整理",
-            "skeleton_x": [],
-            "skeleton_y": [],
-            "neck_x": [dates[-30], dates[-1]],
-            "neck_y": [recent_30_high, recent_30_high],
-            "neck_color": "#FFD700",
-            "annotations": [
-                {"x": dates[-15], "y": recent_30_high, "text": f"箱頂 ${recent_30_high:.1f}", "color": "#FFD700"},
-                {"x": dates[-15], "y": recent_30_low, "text": f"箱底 ${recent_30_low:.1f}", "color": "#FFD700"}
-            ]
-        })
-
+    # 將搜尋到的所有型態按日期「由新到舊」排序
+    patterns = sorted(patterns, key=lambda x: x["date"], reverse=True)
     return patterns
 
 # 4. 側邊欄輸入與設定
@@ -315,10 +206,10 @@ stock_id = st.sidebar.text_input("請輸入台股代碼 (例如 2330, 0050, 2603
 ticker = f"{stock_id}.TW"
 
 st.sidebar.markdown("---")
-st.sidebar.header("📅 自訂分析日期區間")
-default_start = date.today() - timedelta(days=365)
-start_date_input = st.sidebar.date_input("開始日期", value=default_start, min_value=date(2015, 1, 1), max_value=date.today())
-end_date_input = st.sidebar.date_input("結束日期", value=date.today(), min_value=date(2015, 1, 1), max_value=date.today())
+st.sidebar.header("📅 自訂歷史分析區間")
+default_start = date.today() - timedelta(days=365*3) # 預設改為 3 年區間
+start_date_input = st.sidebar.date_input("開始日期", value=default_start, min_value=date(2010, 1, 1), max_value=date.today())
+end_date_input = st.sidebar.date_input("結束日期", value=date.today(), min_value=date(2010, 1, 1), max_value=date.today())
 
 st.sidebar.markdown("---")
 st.sidebar.header("⚙️ 客製化均線參數 (MA)")
@@ -332,7 +223,7 @@ if st.sidebar.button("開始分析"):
     if start_date_input >= end_date_input:
         st.error("「開始日期」必須早於「結束日期」，請重新選擇！")
     else:
-        with st.spinner("正在讀取指定區間市場數據並進行 AI 型態掃描..."):
+        with st.spinner("正在進行指定全時間區間歷史型態掃描..."):
             try:
                 company_name = get_taiwan_stock_name(stock_id)
 
@@ -379,14 +270,16 @@ if st.sidebar.button("開始分析"):
                     # 日期轉換為字串
                     df.index = df.index.strftime('%Y-%m-%d')
 
-                    # 型態識別
+                    # 全域型態識別
                     detected_patterns = detect_patterns(df)
 
-                    # ---- 型態資訊提示區塊 ----
+                    # ---- 型態資訊提示與歷程列表 ----
                     st.markdown("---")
-                    st.subheader("🔍 AI 演算法：K 線與幾何型態掃描結果")
+                    st.subheader(f"🔍 AI 歷史掃描：在該區間內共偵測出 {len(detected_patterns)} 個關鍵型態訊號")
+                    
                     if detected_patterns:
-                        for p in detected_patterns:
+                        # 展開前 15 個最新的型態細節
+                        for p in detected_patterns[:15]:
                             if "看多" in p["type"]:
                                 st.success(f"**【{p['name']}】** ({p['type']}) — {p['detail']}")
                             elif "看空" in p["type"]:
@@ -394,10 +287,10 @@ if st.sidebar.button("開始分析"):
                             else:
                                 st.info(f"**【{p['name']}】** ({p['type']}) — {p['detail']}")
                     else:
-                        st.warning("在此時間區間內未偵測到顯著的經典幾何或 K 線型態，當前處於一般趨勢整理中。")
+                        st.warning("在選擇的時間區間內未偵測到明顯的幾何與 K 線型態。")
 
                     # ---- 圖表繪製 ----
-                    st.subheader(f"📈 {start_str} ~ {end_str} 歷史走勢與視覺化圖表標註")
+                    st.subheader(f"📈 {start_str} ~ {end_str} 全圖表走勢與歷史型態畫線標註")
                     
                     fig = make_subplots(
                         rows=2, cols=1, 
@@ -418,16 +311,17 @@ if st.sidebar.button("開始分析"):
                     fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma3_val}'], mode='lines', name=f'{ma3_val}日均線', line=dict(color='yellow', width=1.2)), row=1, col=1)
                     fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma4_val}'], mode='lines', name=f'{ma4_val}日均線', line=dict(color='magenta', width=1.2)), row=1, col=1)
 
-                    # 3. 型態骨架與頸線標註
-                    for p in detected_patterns:
+                    # 3. 型態骨架與頸線全圖標註 (限制標註前 10 個幾何型態避免圖表過度雜亂)
+                    geo_patterns = [p for p in detected_patterns if "K線" not in p["type"]][:10]
+                    for p in geo_patterns:
                         if p["skeleton_x"]:
                             fig.add_trace(go.Scatter(
                                 x=p["skeleton_x"], 
                                 y=p["skeleton_y"], 
                                 mode='lines+markers',
-                                name=f"{p['name']} 骨架",
-                                line=dict(color=p["skeleton_color"], width=3),
-                                marker=dict(size=7, color=p["skeleton_color"])
+                                name=f"{p['name']}",
+                                line=dict(color=p["skeleton_color"], width=2.5),
+                                marker=dict(size=6, color=p["skeleton_color"])
                             ), row=1, col=1)
 
                         if p["neck_x"]:
@@ -436,7 +330,7 @@ if st.sidebar.button("開始分析"):
                                 y=p["neck_y"], 
                                 mode='lines',
                                 name=f"{p['name']} 頸線",
-                                line=dict(color=p["neck_color"], width=2, dash="dash")
+                                line=dict(color=p["neck_color"], width=1.8, dash="dash")
                             ), row=1, col=1)
 
                         for ann in p.get("annotations", []):
@@ -445,12 +339,10 @@ if st.sidebar.button("開始分析"):
                                 text=ann["text"],
                                 showarrow=True,
                                 arrowhead=2,
-                                arrowsize=1.2,
+                                arrowsize=1,
                                 arrowcolor=ann["color"],
-                                font=dict(color="#FFFFFF", size=11, family="Arial Black"),
+                                font=dict(color="#FFFFFF", size=10),
                                 bgcolor=ann["color"],
-                                bordercolor="#FFFFFF",
-                                borderwidth=1,
                                 row=1, col=1
                             )
 
@@ -464,22 +356,22 @@ if st.sidebar.button("開始分析"):
                     ), row=2, col=1)
 
                     fig.update_layout(
-                        title=f"{company_name} ({stock_id}) 技術指標與 K 線幾何型態標註圖",
+                        title=f"{company_name} ({stock_id}) 技術指標與歷史 K 線幾何型態全圖標註",
                         yaxis_title="股價 (TWD)",
                         yaxis2_title="成交量 (張)",
                         xaxis_rangeslider_visible=False,
                         template="plotly_dark",
-                        height=720,
+                        height=750,
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                     )
 
                     fig.update_xaxes(
                         type='category', 
                         tickangle=-45,
-                        nticks=10
+                        nticks=12
                     )
                     
                     st.plotly_chart(fig, use_container_width=True)
 
             except Exception as e:
-                st.error(f"資料擷取或型態分析失敗：{e}")
+                st.error(f"資料擷取或歷史型態分析失敗：{e}")
