@@ -11,7 +11,7 @@ from scipy.signal import find_peaks
 # 1. 網頁頁面設定
 st.set_page_config(page_title="AI 台股量化分析看板", layout="wide")
 st.title("📈 AI 智理財：台股多重 K 線與幾何型態繪圖系統")
-st.write("輸入台股股票代碼，可自由切換**自訂日期區間**，即時計算動態均線、價量結構與 **9 大 K 線/幾何型態繪圖標註**。")
+st.write("輸入台股股票代碼，可自由切換**自訂日期區間**，即時計算動態均線、價量結構與 **10 大 K 線/幾何型態繪圖標註**。")
 
 # 2. 自動抓取中文名稱的函式
 def get_taiwan_stock_name(stock_id):
@@ -22,7 +22,7 @@ def get_taiwan_stock_name(stock_id):
         pass
     return f"股票 {stock_id}"
 
-# 3. K 線與幾何型態自動識別 (含 9 大進階型態)
+# 3. K 線與幾何型態自動識別 (含 10 大進階型態)
 def detect_patterns(df):
     patterns = []
     prices = df['Close'].values
@@ -70,7 +70,7 @@ def detect_patterns(df):
                 })
 
     # ----------------------------------------------------
-    # 2. 頭肩頂 (Head & Shoulders Top) - 看空 (新增)
+    # 2. 頭肩頂 (Head & Shoulders Top) - 看空
     # ----------------------------------------------------
     if len(peaks) >= 3:
         p1, p2, p3 = peaks[-3], peaks[-2], peaks[-1]
@@ -99,7 +99,33 @@ def detect_patterns(df):
                 })
 
     # ----------------------------------------------------
-    # 3. W底 (Double Bottom) - 看多
+    # 3. 杯柄型態 (Cup & Handle) - 看多 (新增)
+    # ----------------------------------------------------
+    if len(peaks) >= 2 and len(troughs) >= 2:
+        p1, p2 = peaks[-2], peaks[-1]
+        t_cup = [t for t in troughs if p1 < t < p2]
+        if t_cup and abs(highs[p1] - highs[p2]) / highs[p1] < 0.04:
+            tc = t_cup[0]
+            cup_depth = (highs[p1] - lows[tc]) / highs[p1]
+            if 0.12 < cup_depth < 0.38 and lows[troughs[-1]] > lows[tc]:
+                patterns.append({
+                    "name": "杯柄型態 (Cup & Handle)",
+                    "type": "強烈看多",
+                    "detail": f"杯沿高點: ${highs[p1]:.1f}, 杯底: ${lows[tc]:.1f}, 右側杯柄拉回整理中",
+                    "skeleton_x": [dates[p1], dates[tc], dates[p2], dates[troughs[-1]], dates[-1]],
+                    "skeleton_y": [highs[p1], lows[tc], highs[p2], lows[troughs[-1]], latest_close],
+                    "skeleton_color": "#00E5FF",
+                    "neck_x": [dates[p1], dates[-1]],
+                    "neck_y": [highs[p1], highs[p1]],
+                    "neck_color": "#00E5FF",
+                    "annotations": [
+                        {"x": dates[tc], "y": lows[tc], "text": "U型杯底", "color": "#00E5FF"},
+                        {"x": dates[troughs[-1]], "y": lows[troughs[-1]], "text": "杯柄整理", "color": "#00E5FF"}
+                    ]
+                })
+
+    # ----------------------------------------------------
+    # 4. W底 (Double Bottom) - 看多
     # ----------------------------------------------------
     if len(troughs) >= 2:
         t1, t2 = troughs[-2], troughs[-1]
@@ -128,7 +154,7 @@ def detect_patterns(df):
                 })
 
     # ----------------------------------------------------
-    # 4. M頭 (Double Top) - 看空
+    # 5. M頭 (Double Top) - 看空
     # ----------------------------------------------------
     if len(peaks) >= 2:
         p1, p2 = peaks[-2], peaks[-1]
@@ -157,7 +183,7 @@ def detect_patterns(df):
                 })
 
     # ----------------------------------------------------
-    # 5. 三重底 (Triple Bottom) - 看多 (新增)
+    # 6. 三重底 (Triple Bottom) - 看多
     # ----------------------------------------------------
     if len(troughs) >= 3:
         t1, t2, t3 = troughs[-3], troughs[-2], troughs[-1]
@@ -181,7 +207,7 @@ def detect_patterns(df):
             })
 
     # ----------------------------------------------------
-    # 6. 上升三角 (Ascending Triangle) - 看多 (新增)
+    # 7. 上升三角 (Ascending Triangle) - 看多
     # ----------------------------------------------------
     if len(peaks) >= 2 and len(troughs) >= 2:
         p1, p2 = peaks[-2], peaks[-1]
@@ -204,7 +230,7 @@ def detect_patterns(df):
             })
 
     # ----------------------------------------------------
-    # 7. 下降三角 (Descending Triangle) - 看空 (新增)
+    # 8. 下降三角 (Descending Triangle) - 看空
     # ----------------------------------------------------
     if len(peaks) >= 2 and len(troughs) >= 2:
         p1, p2 = peaks[-2], peaks[-1]
@@ -227,13 +253,12 @@ def detect_patterns(df):
             })
 
     # ----------------------------------------------------
-    # 8. K線訊號：多頭吞噬 / 空頭吞噬 (新增)
+    # 9. K線訊號：多頭吞噬 / 空頭吞噬
     # ----------------------------------------------------
-    for i in range(-5, -1):  # 掃描近幾天 K 線
+    for i in range(-5, -1):
         prev_o, prev_c = opens[i-1], prices[i-1]
         curr_o, curr_c = opens[i], prices[i]
         
-        # 多頭吞噬：前一根黑K，這根紅K完全包覆前一根實體
         if prev_c < prev_o and curr_c > curr_o and curr_o <= prev_c and curr_c >= prev_o:
             patterns.append({
                 "name": "多頭吞噬 (Bullish Engulfing)",
@@ -247,7 +272,6 @@ def detect_patterns(df):
             })
             break
 
-        # 空頭吞噬：前一根紅K，這根黑K完全包覆前一根實體
         elif prev_c > prev_o and curr_c < curr_o and curr_o >= prev_c and curr_c <= prev_o:
             patterns.append({
                 "name": "空頭吞噬 (Bearish Engulfing)",
@@ -262,7 +286,7 @@ def detect_patterns(df):
             break
 
     # ----------------------------------------------------
-    # 9. 箱型整理 (Box Range)
+    # 10. 箱型整理 (Box Range)
     # ----------------------------------------------------
     recent_30_high = max(highs[-30:])
     recent_30_low = min(lows[-30:])
