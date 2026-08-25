@@ -9,9 +9,100 @@ from datetime import datetime, date, timedelta
 from scipy.signal import find_peaks
 
 # 1. 網頁頁面設定
-st.set_page_config(page_title="AI 台股量化分析看板", layout="wide")
-st.title("📈 AI 智理財：全時間區間歷史 K 線與幾何型態掃描系統")
-st.write("輸入台股代碼與自訂日期區間，AI 演算法將自動掃描經典型態，可手動選擇開啟型態標註。")
+st.set_page_config(
+    page_title="AI 台股量化分析看板",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# 🎨 2. 自訂 CSS 美化樣式
+st.markdown("""
+<style>
+    /* 全域背景與字體優化 */
+    .stApp {
+        background-color: #0E1117;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    
+    /* 標題與內文顏色 */
+    h1, h2, h3, h4, h5, h6, label {
+        color: #F0F6FC !important;
+    }
+    
+    /* 頂部 Header 樣式 */
+    .main-title {
+        font-size: 2.2rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #29B6F6, #AB47BC);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.2rem;
+    }
+    
+    .sub-title {
+        color: #8B949E;
+        font-size: 0.95rem;
+        margin-bottom: 1.5rem;
+    }
+
+    /* 數據卡片 (Metrics) 容器美化 */
+    [data-testid="stMetric"] {
+        background-color: #161B22;
+        border: 1px solid #30363D;
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    [data-testid="stMetric"]:hover {
+        transform: translateY(-2px);
+        border-color: #58A6FF;
+    }
+    [data-testid="stMetricValue"] {
+        font-size: 1.6rem !important;
+        font-weight: 700;
+        color: #58A6FF !important;
+    }
+
+    /* 側邊欄 Sidebar 美化 */
+    section[data-testid="stSidebar"] {
+        background-color: #161B22;
+        border-right: 1px solid #30363D;
+    }
+
+    /* 按鈕樣式強化 */
+    div.stButton > button {
+        width: 100%;
+        background: linear-gradient(135deg, #1F6FEB, #238636);
+        color: #FFFFFF !important;
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    div.stButton > button:hover {
+        background: linear-gradient(135deg, #388BFD, #2EA043);
+        box-shadow: 0 4px 12px rgba(31, 111, 235, 0.4);
+        transform: translateY(-1px);
+    }
+
+    /* 下拉選單與輸入框邊框圓角 */
+    .stTextInput input, .stDateInput input, .stNumberInput input {
+        background-color: #0D1117 !important;
+        color: #C9D1D9 !important;
+        border-radius: 8px !important;
+        border: 1px solid #30363D !important;
+    }
+    .stMultiSelect div[data-baseweb="select"] {
+        background-color: #0D1117 !important;
+        border-radius: 8px !important;
+        border: 1px solid #30363D !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # 初始化 Session State
 if "data_loaded" not in st.session_state:
@@ -23,7 +114,11 @@ if "detected_patterns" not in st.session_state:
 if "company_name" not in st.session_state:
     st.session_state.company_name = ""
 
-# 2. 自動抓取中文名稱的函式
+# 3. 標頭渲染
+st.markdown('<div class="main-title">📈 AI 智理財：量化技術走勢與型態掃描看板</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">自動精準辨識經典幾何圖形，支援滑鼠滾輪自由無級縮放與雙圖動態連動。</div>', unsafe_allow_html=True)
+
+# 4. 自動抓取中文名稱
 def get_taiwan_stock_name(stock_id):
     try:
         if stock_id in twstock.codes:
@@ -32,13 +127,12 @@ def get_taiwan_stock_name(stock_id):
         pass
     return f"股票 {stock_id}"
 
-# 3. K 線與幾何型態全域自動識別
+# 5. K 線與幾何型態識別演算法
 def detect_patterns(df):
     patterns = []
     prices = df['Close'].values
     highs = df['High'].values
     lows = df['Low'].values
-    opens = df['Open'].values
     dates = df.index.tolist()
     n = len(prices)
 
@@ -62,7 +156,6 @@ def detect_patterns(df):
                     "name": "W底 (Double Bottom)",
                     "type": "看多",
                     "date": dates[t2],
-                    "detail": f"日期: {dates[t1]} ~ {dates[t2]} | 第一底 ${l1:.1f}, 第二底 ${l2:.1f}, 頸線 ${neck_line:.1f}",
                     "skeleton_x": [dates[t1], dates[p_mid], dates[t2]],
                     "skeleton_y": [l1, neck_line, l2],
                     "skeleton_color": "#00FF7F",
@@ -86,7 +179,6 @@ def detect_patterns(df):
                     "name": "M頭 (Double Top)",
                     "type": "看空",
                     "date": dates[p2],
-                    "detail": f"日期: {dates[p1]} ~ {dates[p2]} | 第一頂 ${h1:.1f}, 第二頂 ${h2:.1f}, 頸線 ${neck_line:.1f}",
                     "skeleton_x": [dates[p1], dates[t_mid], dates[p2]],
                     "skeleton_y": [h1, neck_line, h2],
                     "skeleton_color": "#FF4500",
@@ -110,7 +202,6 @@ def detect_patterns(df):
                     "name": "頭肩底 (Head & Shoulders)",
                     "type": "看多",
                     "date": dates[t3],
-                    "detail": f"日期: {dates[t1]} ~ {dates[t3]} | 左肩 ${l1:.1f}, 頭部 ${l2:.1f}, 右肩 ${l3:.1f}",
                     "skeleton_x": [dates[t1], dates[p1], dates[t2], dates[p2], dates[t3]],
                     "skeleton_y": [l1, highs[p1], l2, highs[p2], l3],
                     "skeleton_color": "#00FFFF",
@@ -134,7 +225,6 @@ def detect_patterns(df):
                     "name": "頭肩頂 (Head & Shoulders Top)",
                     "type": "看空",
                     "date": dates[p3],
-                    "detail": f"日期: {dates[p1]} ~ {dates[p3]} | 左肩 ${h1:.1f}, 頭部 ${h2:.1f}, 右肩 ${h3:.1f}",
                     "skeleton_x": [dates[p1], dates[t1_idx], dates[p2], dates[t2_idx], dates[p3]],
                     "skeleton_y": [h1, lows[t1_idx], h2, lows[t2_idx], h3],
                     "skeleton_color": "#FF1493",
@@ -144,32 +234,33 @@ def detect_patterns(df):
                     "annotations": [{"x": dates[p2], "y": h2, "text": "頭肩頂", "color": "#FF1493"}]
                 })
 
-    patterns = sorted(patterns, key=lambda x: x["date"], reverse=True)
-    return patterns
+    return sorted(patterns, key=lambda x: x["date"], reverse=True)
 
-# 4. 側邊欄輸入與設定
-st.sidebar.header("🔍 股票查詢")
-stock_id = st.sidebar.text_input("請輸入台股代碼：", value="2330").strip()
+# 6. 側邊欄設定
+st.sidebar.markdown("### 🔍 標的查詢")
+stock_id = st.sidebar.text_input("台股代碼", value="2330").strip()
 
 st.sidebar.markdown("---")
-st.sidebar.header("📅 自訂歷史分析區間")
+st.sidebar.markdown("### 📅 時間區間")
 default_start = date.today() - timedelta(days=365*2)
 start_date_input = st.sidebar.date_input("開始日期", value=default_start, min_value=date(2010, 1, 1), max_value=date.today())
 end_date_input = st.sidebar.date_input("結束日期", value=date.today(), min_value=date(2010, 1, 1), max_value=date.today())
 
 st.sidebar.markdown("---")
-st.sidebar.header("⚙️ 均線參數 (MA)")
-ma1_val = st.sidebar.number_input("均線 1 (日)", min_value=1, max_value=240, value=5)
-ma2_val = st.sidebar.number_input("均線 2 (日)", min_value=1, max_value=240, value=10)
-ma3_val = st.sidebar.number_input("均線 3 (日)", min_value=1, max_value=240, value=20)
-ma4_val = st.sidebar.number_input("均線 4 (日)", min_value=1, max_value=240, value=60)
+st.sidebar.markdown("### ⚙️ 技術均線 (MA)")
+col_ma1, col_ma2 = st.sidebar.columns(2)
+ma1_val = col_ma1.number_input("MA 1", min_value=1, max_value=240, value=5)
+ma2_val = col_ma2.number_input("MA 2", min_value=1, max_value=240, value=10)
+col_ma3, col_ma4 = st.sidebar.columns(2)
+ma3_val = col_ma3.number_input("MA 3", min_value=1, max_value=240, value=20)
+ma4_val = col_ma4.number_input("MA 4", min_value=1, max_value=240, value=60)
 
-# 觸發抓取資料的按鈕處理邏輯
-if st.sidebar.button("開始分析"):
+st.sidebar.markdown("<br>", unsafe_allow_html=True)
+if st.sidebar.button("🚀 開始量化分析"):
     if start_date_input >= end_date_input:
         st.error("「開始日期」必須早於「結束日期」！")
     else:
-        with st.spinner("正在讀取歷史數據並分析型態..."):
+        with st.spinner("正在加載歷史數據並繪製型態..."):
             try:
                 ticker = f"{stock_id}.TW"
                 start_str = start_date_input.strftime("%Y-%m-%d")
@@ -180,38 +271,35 @@ if st.sidebar.button("開始分析"):
                     df = yf.download(f"{stock_id}.TWO", start=start_str, end=end_str)
 
                 if df.empty:
-                    st.error("找不到數據，請確認代碼與日期！")
+                    st.error("查無數據，請確認股票代碼！")
                     st.session_state.data_loaded = False
                 else:
                     if isinstance(df.columns, pd.MultiIndex):
                         df.columns = df.columns.get_level_values(0)
 
                     df.index = df.index.strftime('%Y-%m-%d')
-                    
-                    # 保存進 session_state
                     st.session_state.df = df
                     st.session_state.company_name = get_taiwan_stock_name(stock_id)
                     st.session_state.detected_patterns = detect_patterns(df)
                     st.session_state.data_loaded = True
 
             except Exception as e:
-                st.error(f"數據分析失敗：{e}")
+                st.error(f"資料讀取失敗：{e}")
                 st.session_state.data_loaded = False
 
-# 5. 主畫面繪製邏輯（只要 state 中有資料就會持續渲染）
+# 7. 主畫面渲染
 if st.session_state.data_loaded:
     df = st.session_state.df.copy()
     company_name = st.session_state.company_name
     detected_patterns = st.session_state.detected_patterns
 
-    # 動態計算均線
+    # 計算均線
     df[f'MA_{ma1_val}'] = df['Close'].rolling(window=ma1_val).mean()
     df[f'MA_{ma2_val}'] = df['Close'].rolling(window=ma2_val).mean()
     df[f'MA_{ma3_val}'] = df['Close'].rolling(window=ma3_val).mean()
     df[f'MA_{ma4_val}'] = df['Close'].rolling(window=ma4_val).mean()
 
-    # 核心指標卡片
-    st.subheader(f"📊 {company_name} ({stock_id}) 核心指標")
+    # 數據指標卡片
     latest_close = float(df["Close"].iloc[-1])
     prev_close = float(df["Close"].iloc[-2]) if len(df) > 1 else latest_close
     price_change = latest_close - prev_close
@@ -219,44 +307,35 @@ if st.session_state.data_loaded:
     latest_vol = int(df["Volume"].iloc[-1]) // 1000
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("最新收盤價", f"${latest_close:.2f}", f"{price_change:+.2f} ({pct_change:+.2f}%)")
+    col1.metric(f"{company_name} 最新價", f"${latest_close:.2f}", f"{price_change:+.2f} ({pct_change:+.2f}%)")
     col2.metric("前日收盤價", f"${prev_close:.2f}")
-    col3.metric("成交量 (張)", f"{latest_vol:,}")
+    col3.metric("最新成交量", f"{latest_vol:,} 張")
     col4.metric("區間最高價", f"${df['High'].max():.2f}")
 
-    # 多選下拉選單與快速按鈕控制
+    # 型態多選控制
     st.markdown("---")
-    st.subheader("🔍 AI 型態控制選單 (支援多選)")
+    st.markdown("#### 🎯 AI 幾何型態疊加控制")
 
-    # 建立型態選項列表
     pattern_options = [f"{p['date']} {p['name']}" for p in detected_patterns]
 
-    # 初始化預設選擇
     if "selected_patterns" not in st.session_state:
         st.session_state.selected_patterns = []
 
-    # 按鈕控制：全選與清空
-    col_b1, col_b2, col_b3 = st.columns([1, 1, 4])
+    col_b1, col_b2, _ = st.columns([1, 1, 4])
     with col_b1:
-        if st.button("全選型態"):
+        if st.button("全選標註"):
             st.session_state.selected_patterns = pattern_options
     with col_b2:
-        if st.button("清爽模式 (全不選)"):
+        if st.button("清爽模式"):
             st.session_state.selected_patterns = []
 
     selected_options = st.multiselect(
-        "請勾選欲顯示的型態標註（可多選）：",
+        "選擇要繪製在圖表上的幾何型態：",
         options=pattern_options,
-        key="selected_patterns",
-        help="點擊選單可同時勾選多個型態，或使用上方按鈕進行全選/清空。"
+        key="selected_patterns"
     )
 
-    if detected_patterns:
-        st.info(f"💡 區間內共掃描出 **{len(detected_patterns)}** 個關鍵幾何型態。目前已選取 **{len(selected_options)}** 個型態進行標註。")
-    else:
-        st.warning("該區間內未辨識出明顯幾何型態。")
-
-    # Hover 文字處理
+    # Hover 浮動卡片處理
     df['Prev_Close'] = df['Close'].shift(1)
     df['Change'] = df['Close'] - df['Prev_Close']
     df['Pct_Change'] = (df['Change'] / df['Prev_Close']) * 100
@@ -275,35 +354,34 @@ if st.session_state.data_loaded:
 
         text = (
             f"<b>{dt_str.replace('-','/')} {weekday_str}</b><br>"
-            f"開盤：<span style='color:{color}'>{row['Open']:.3f}</span><br>"
-            f"最高：<span style='color:{color}'>{row['High']:.3f}</span><br>"
-            f"最低：<span style='color:{color}'>{row['Low']:.3f}</span><br>"
-            f"收盤：<span style='color:{color}'>{row['Close']:.3f}</span><br>"
-            f"漲跌額：<span style='color:{color}'>{sign}{change_val:.3f}</span><br>"
+            f"開盤：<span style='color:{color}'>{row['Open']:.2f}</span><br>"
+            f"最高：<span style='color:{color}'>{row['High']:.2f}</span><br>"
+            f"最低：<span style='color:{color}'>{row['Low']:.2f}</span><br>"
+            f"收盤：<span style='color:{color}'>{row['Close']:.2f}</span><br>"
+            f"漲跌額：<span style='color:{color}'>{sign}{change_val:.2f}</span><br>"
             f"漲跌幅：<span style='color:{color}'>{sign}{pct_val:.2f}%</span><br>"
-            f"成交量(張)：{vol_zhang:,}"
+            f"成交量：{vol_zhang:,} 張"
         )
         hover_texts.append(text)
 
-    # 繪製圖表 (確保連動縮放與滑鼠滾輪支援)
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.7, 0.3])
+    # Plotly 繪圖
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.72, 0.28])
 
     # K線
     fig.add_trace(go.Candlestick(
         x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
-        increasing_line_color='red', decreasing_line_color='green', name="K線",
+        increasing_line_color='#FF4500', decreasing_line_color='#00FF7F', name="K線",
         text=hover_texts, hoverinfo="text"
     ), row=1, col=1)
 
     # 均線
-    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma1_val}'], mode='lines', name=f'{ma1_val}MA', line=dict(color='orange', width=1), hoverinfo='skip'), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma2_val}'], mode='lines', name=f'{ma2_val}MA', line=dict(color='cyan', width=1), hoverinfo='skip'), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma3_val}'], mode='lines', name=f'{ma3_val}MA', line=dict(color='yellow', width=1.2), hoverinfo='skip'), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma4_val}'], mode='lines', name=f'{ma4_val}MA', line=dict(color='magenta', width=1.2), hoverinfo='skip'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma1_val}'], mode='lines', name=f'{ma1_val}MA', line=dict(color='#FFD700', width=1.2), hoverinfo='skip'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma2_val}'], mode='lines', name=f'{ma2_val}MA', line=dict(color='#00FFFF', width=1.2), hoverinfo='skip'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma3_val}'], mode='lines', name=f'{ma3_val}MA', line=dict(color='#FF00FF', width=1.5), hoverinfo='skip'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma4_val}'], mode='lines', name=f'{ma4_val}MA', line=dict(color='#1E90FF', width=1.5), hoverinfo='skip'), row=1, col=1)
 
-    # 動態繪製多選的型態
+    # 繪製選取的幾何型態
     patterns_to_draw = [p for p in detected_patterns if f"{p['date']} {p['name']}" in selected_options]
-
     for p in patterns_to_draw:
         if p["skeleton_x"]:
             fig.add_trace(go.Scatter(
@@ -323,77 +401,59 @@ if st.session_state.data_loaded:
             fig.add_annotation(
                 x=ann["x"], y=ann["y"], text=ann["text"],
                 showarrow=True, arrowhead=2, arrowcolor=ann["color"],
-                font=dict(color="#FFFFFF", size=10), bgcolor=ann["color"], row=1, col=1
+                font=dict(color="#FFFFFF", size=11), bgcolor=ann["color"], row=1, col=1
             )
 
-    # 成交量 (柱狀圖)
-    colors = ['red' if c >= o else 'green' for c, o in zip(df['Close'], df['Open'])]
+    # 成交量
+    colors = ['#FF4500' if c >= o else '#00FF7F' for c, o in zip(df['Close'], df['Open'])]
     fig.add_trace(go.Bar(x=df.index, y=df['Volume'] / 1000, name="成交量(張)", marker_color=colors, hoverinfo='skip'), row=2, col=1)
 
-    # Layout 設定：開啟滾輪縮放與自動調整高低
+    # 圖表版面配置
     fig.update_layout(
-        title=f"{company_name} ({stock_id}) 技術走勢圖 (💡 提示：按住滑鼠左鍵可拖曳，滾動滾輪可調整放大/縮小時間軸)",
+        title=f"<b>{company_name} ({stock_id}) 全功能技術分析圖</b>",
+        title_font=dict(size=18, color="#F0F6FC"),
         xaxis_rangeslider_visible=False,
         template="plotly_dark",
-        height=750,
+        paper_bgcolor="#161B22",
+        plot_bgcolor="#0D1117",
+        height=720,
         hovermode="x",
-        hoverlabel=dict(bgcolor="rgba(25, 25, 25, 0.9)", font_size=12, font_color="#FFFFFF", align="left"),
-        margin=dict(r=60, t=50, l=20, b=100),
-        legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="left", x=0),
-        dragmode="pan"  # 預設滑鼠左鍵為拖曳移動 (Pan) 模式
+        hoverlabel=dict(bgcolor="rgba(22, 27, 34, 0.95)", font_size=12, font_color="#F0F6FC", align="left"),
+        margin=dict(r=20, t=50, l=20, b=80),
+        legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="left", x=0, font=dict(color="#C9D1D9")),
+        dragmode="pan"
     )
 
-    # X 軸允許滾輪縮放
     fig.update_xaxes(
-        type='category',
-        tickangle=-45,
-        nticks=12,
-        showspikes=True,
-        spikemode='across',
-        spikethickness=1,
-        spikecolor='#888888',
-        spikedash='dash',
-        fixedrange=False # 允許自由縮放 X 軸
+        type='category', tickangle=-45, nticks=12,
+        showgrid=True, gridcolor="#21262D",
+        showspikes=True, spikemode='across', spikethickness=1, spikecolor='#8B949E', spikedash='dash',
+        fixedrange=False
     )
 
-    # Y 軸 (K線高低自動自我自適應，不被鎖死)
     fig.update_yaxes(
-        side="right",
-        title="股價 (TWD)",
-        showspikes=True,
-        spikemode='across',
-        spikethickness=1,
-        spikecolor='#888888',
-        spikedash='dash',
-        autorange=True,
-        fixedrange=False,
-        row=1, col=1
+        side="right", title="股價 (TWD)",
+        showgrid=True, gridcolor="#21262D",
+        showspikes=True, spikemode='across', spikethickness=1, spikecolor='#8B949E', spikedash='dash',
+        autorange=True, fixedrange=False, row=1, col=1
     )
 
-    # Y 軸 (成交量高低自動自適應，放大時看清全貌)
     fig.update_yaxes(
-        side="right",
-        title="成交量 (張)",
-        showspikes=True,
-        spikemode='across',
-        spikethickness=1,
-        spikecolor='#888888',
-        spikedash='dash',
-        autorange=True,
-        fixedrange=False,
-        row=2, col=1
+        side="right", title="成交量 (張)",
+        showgrid=True, gridcolor="#21262D",
+        showspikes=True, spikemode='across', spikethickness=1, spikecolor='#8B949E', spikedash='dash',
+        autorange=True, fixedrange=False, row=2, col=1
     )
 
-    # 渲染圖表時，加入 config 啟用滾輪縮放 (scrollZoom: True)
     st.plotly_chart(
         fig,
         use_container_width=True,
         config={
-            'scrollZoom': True,        # 👈 核心關鍵：開啟滑鼠滾輪縮放
-            'displayModeBar': True,    # 顯示頂部輕量工具欄
-            'displaylogo': False,      # 隱藏Plotly 套件 標誌
-            'modeBarButtonsToRemove': ['select2d', 'lasso2d'] # 移除不常用的選取工具
+            'scrollZoom': True,
+            'displayModeBar': True,
+            'displaylogo': False,
+            'modeBarButtonsToRemove': ['select2d', 'lasso2d']
         }
     )
 else:
-    st.info("👈 請在左側輸入股票代碼與時間區間，點擊「開始分析」即可產生技術圖表。")
+    st.info("👈 請在左側側邊欄輸入股票代碼與區間，點擊「開始量化分析」按鈕。")
