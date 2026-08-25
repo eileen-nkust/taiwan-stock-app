@@ -224,19 +224,37 @@ if st.session_state.data_loaded:
     col3.metric("成交量 (張)", f"{latest_vol:,}")
     col4.metric("區間最高價", f"${df['High'].max():.2f}")
 
-    # 下拉選單與控制控制項
+    # 多選下拉選單與快速按鈕控制
     st.markdown("---")
-    col_p1, col_p2 = st.columns([1.5, 2.5])
-    with col_p1:
-        st.subheader("🔍 AI 型態控制選單")
-        pattern_options = ["不顯示型態 (清爽模式)", "顯示全域所有型態"] + [f"{p['date']} {p['name']}" for p in detected_patterns]
-        selected_option = st.selectbox("請選擇要在圖表顯示的型態：", pattern_options)
-    
-    with col_p2:
-        if detected_patterns:
-            st.info(f"💡 區間內共掃描出 **{len(detected_patterns)}** 個關鍵幾何型態。選取左側項目即可在圖表畫線標註。")
-        else:
-            st.warning("該區間內未辨識出明顯幾何型態。")
+    st.subheader("🔍 AI 型態控制選單 (支援多選)")
+
+    # 建立型態選項列表
+    pattern_options = [f"{p['date']} {p['name']}" for p in detected_patterns]
+
+    # 初始化預設選擇
+    if "selected_patterns" not in st.session_state:
+        st.session_state.selected_patterns = []
+
+    # 按鈕控制：全選與清空
+    col_b1, col_b2, col_b3 = st.columns([1, 1, 4])
+    with col_b1:
+        if st.button("全選型態"):
+            st.session_state.selected_patterns = pattern_options
+    with col_b2:
+        if st.button("清爽模式 (全不選)"):
+            st.session_state.selected_patterns = []
+
+    selected_options = st.multiselect(
+        "請勾選欲顯示的型態標註（可多選）：",
+        options=pattern_options,
+        key="selected_patterns",
+        help="點擊選單可同時勾選多個型態，或使用上方按鈕進行全選/清空。"
+    )
+
+    if detected_patterns:
+        st.info(f"💡 區間內共掃描出 **{len(detected_patterns)}** 個關鍵幾何型態。目前已選取 **{len(selected_options)}** 個型態進行標註。")
+    else:
+        st.warning("該區間內未辨識出明顯幾何型態。")
 
     # Hover 文字處理
     df['Prev_Close'] = df['Close'].shift(1)
@@ -283,12 +301,8 @@ if st.session_state.data_loaded:
     fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma3_val}'], mode='lines', name=f'{ma3_val}MA', line=dict(color='yellow', width=1.2), hoverinfo='skip'), row=1, col=1)
     fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma4_val}'], mode='lines', name=f'{ma4_val}MA', line=dict(color='magenta', width=1.2), hoverinfo='skip'), row=1, col=1)
 
-    # 動態繪製型態
-    patterns_to_draw = []
-    if selected_option == "顯示全域所有型態":
-        patterns_to_draw = detected_patterns
-    elif selected_option != "不顯示型態 (清爽模式)":
-        patterns_to_draw = [p for p in detected_patterns if f"{p['date']} {p['name']}" == selected_option]
+    # 動態繪製多選的型態
+    patterns_to_draw = [p for p in detected_patterns if f"{p['date']} {p['name']}" in selected_options]
 
     for p in patterns_to_draw:
         if p["skeleton_x"]:
@@ -334,4 +348,4 @@ if st.session_state.data_loaded:
 
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.info("👈 請在左側輸入股票代碼與時間區間，並點擊「開始分析」即可產生技術分析圖表。")
+    st.info("👈 請在左側輸入股票代碼與時間區間，點擊「開始分析」即可產生技術圖表。")
