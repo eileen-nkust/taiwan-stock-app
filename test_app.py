@@ -246,20 +246,27 @@ stock_id = st.sidebar.text_input("台股代碼", value="2330").strip()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 時間區間")
-default_start = date.today() - timedelta(days=365*2)
-start_date_input = st.sidebar.date_input("開始日期", value=default_start, min_value=date(2010, 1, 1), max_value=date.today())
-end_date_input = st.sidebar.date_input("結束日期", value=date.today(), min_value=date(2010, 1, 1), max_value=date.today())
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 技術均線 (MA)")
-col_ma1, col_ma2 = st.sidebar.columns(2)
-ma1_val = col_ma1.number_input("MA 1", min_value=1, max_value=240, value=5)
-ma2_val = col_ma2.number_input("MA 2", min_value=1, max_value=240, value=10)
-col_ma3, col_ma4 = st.sidebar.columns(2)
-ma3_val = col_ma3.number_input("MA 3", min_value=1, max_value=240, value=20)
-ma4_val = col_ma4.number_input("MA 4", min_value=1, max_value=240, value=60)
+# 生成年份列表（從今年開始倒序排至 2010 年，最新年份在最上面）
+current_year = date.today().year
+year_options = list(range(current_year, 2009, -1))
 
-st.sidebar.markdown("<br>", unsafe_allow_html=True)
+# --- 開始日期設定 ---
+col_s_yr, col_s_dt = st.sidebar.columns([1, 1])
+# 開始年份：預設為 2 年前
+default_start_year = current_year - 2
+start_year = col_s_yr.selectbox("開始年份", options=year_options, index=year_options.index(default_start_year))
+start_month_day = col_s_dt.date_input("開始月日", value=date(start_year, date.today().month, date.today().day), format="MM/DD")
+# 組合出最終開始日期
+start_date_input = date(start_year, start_month_day.month, start_month_day.day)
+
+# --- 結束日期設定 ---
+col_e_yr, col_e_dt = st.sidebar.columns([1, 1])
+end_year = col_e_yr.selectbox("結束年份", options=year_options, index=0) # 預設選最新年份
+end_month_day = col_e_dt.date_input("結束月日", value=date.today(), format="MM/DD")
+# 組合出最終結束日期
+end_date_input = date(end_year, end_month_day.month, end_month_day.day)
+
 # 5. 按鈕文字置中、無 Emoji 圖示
 if st.sidebar.button("開始量化分析"):
     if start_date_input >= end_date_input:
