@@ -10,13 +10,13 @@ from scipy.signal import find_peaks
 
 # 1. 網頁頁面設定
 st.set_page_config(
-    page_title="AI 台股量化分析看板",
+    page_title="AI 智理財：量化技術走勢與型態掃描看板",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 🎨 2. 自訂 CSS 美化樣式
+# 🎨 2. 自訂 CSS 美化樣式 (包含 5 項修改需求)
 st.markdown("""
 <style>
     /* 全域背景與字體優化 */
@@ -30,13 +30,11 @@ st.markdown("""
         color: #F0F6FC !important;
     }
     
-    /* 頂部 Header 樣式 */
+    /* 1. 主標題改為純白色、無漸層 */
     .main-title {
         font-size: 2.2rem;
         font-weight: 700;
-        background: linear-gradient(90deg, #29B6F6, #AB47BC);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: #FFFFFF !important;
         margin-bottom: 0.2rem;
     }
     
@@ -46,12 +44,16 @@ st.markdown("""
         margin-bottom: 1.5rem;
     }
 
-    /* 數據卡片 (Metrics) 容器美化 */
+    /* 3. 數據卡片 (Metrics) 統一大小與容器美化 */
     [data-testid="stMetric"] {
         background-color: #161B22;
         border: 1px solid #30363D;
-        padding: 15px;
+        padding: 12px 16px;
         border-radius: 12px;
+        height: 105px; /* 統一高度 */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         transition: transform 0.2s ease, border-color 0.2s ease;
     }
@@ -60,7 +62,7 @@ st.markdown("""
         border-color: #58A6FF;
     }
     [data-testid="stMetricValue"] {
-        font-size: 1.6rem !important;
+        font-size: 1.5rem !important;
         font-weight: 700;
         color: #58A6FF !important;
     }
@@ -71,21 +73,23 @@ st.markdown("""
         border-right: 1px solid #30363D;
     }
 
-    /* 按鈕樣式強化 */
+    /* 5. 按鈕樣式：無漸層、文字置中、字體加大、尺寸一致 */
     div.stButton > button {
         width: 100%;
-        background: linear-gradient(135deg, #1F6FEB, #238636);
+        background-color: #1F6FEB !important; /* 純色無漸層 */
         color: #FFFFFF !important;
-        border: none;
+        border: 1px solid #388BFD !important;
         border-radius: 8px;
-        padding: 0.5rem 1rem;
+        padding: 0.6rem 1rem;
+        font-size: 1.05rem !important; /* 字體稍微加大 */
         font-weight: 600;
-        transition: all 0.3s ease;
+        text-align: center !important; /* 文字置中 */
+        transition: all 0.2s ease;
         box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
     div.stButton > button:hover {
-        background: linear-gradient(135deg, #388BFD, #2EA043);
-        box-shadow: 0 4px 12px rgba(31, 111, 235, 0.4);
+        background-color: #388BFD !important;
+        border-color: #58A6FF !important;
         transform: translateY(-1px);
     }
 
@@ -114,8 +118,8 @@ if "detected_patterns" not in st.session_state:
 if "company_name" not in st.session_state:
     st.session_state.company_name = ""
 
-# 3. 標頭渲染
-st.markdown('<div class="main-title">📈 AI 智理財：量化技術走勢與型態掃描看板</div>', unsafe_allow_html=True)
+# 1. & 2. 標頭渲染 (改純白，移除左側圖示與漸層)
+st.markdown('<div class="main-title">AI 智理財：量化技術走勢與型態掃描看板</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-title">自動精準辨識經典幾何圖形，支援滑鼠滾輪自由無級縮放與雙圖動態連動。</div>', unsafe_allow_html=True)
 
 # 4. 自動抓取中文名稱
@@ -237,17 +241,17 @@ def detect_patterns(df):
     return sorted(patterns, key=lambda x: x["date"], reverse=True)
 
 # 6. 側邊欄設定
-st.sidebar.markdown("### 🔍 標的查詢")
+st.sidebar.markdown("### 標的查詢")
 stock_id = st.sidebar.text_input("台股代碼", value="2330").strip()
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 📅 時間區間")
+st.sidebar.markdown("### 時間區間")
 default_start = date.today() - timedelta(days=365*2)
 start_date_input = st.sidebar.date_input("開始日期", value=default_start, min_value=date(2010, 1, 1), max_value=date.today())
 end_date_input = st.sidebar.date_input("結束日期", value=date.today(), min_value=date(2010, 1, 1), max_value=date.today())
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### ⚙️ 技術均線 (MA)")
+st.sidebar.markdown("### 技術均線 (MA)")
 col_ma1, col_ma2 = st.sidebar.columns(2)
 ma1_val = col_ma1.number_input("MA 1", min_value=1, max_value=240, value=5)
 ma2_val = col_ma2.number_input("MA 2", min_value=1, max_value=240, value=10)
@@ -256,7 +260,8 @@ ma3_val = col_ma3.number_input("MA 3", min_value=1, max_value=240, value=20)
 ma4_val = col_ma4.number_input("MA 4", min_value=1, max_value=240, value=60)
 
 st.sidebar.markdown("<br>", unsafe_allow_html=True)
-if st.sidebar.button("🚀 開始量化分析"):
+# 5. 按鈕文字置中、無 Emoji 圖示
+if st.sidebar.button("開始量化分析"):
     if start_date_input >= end_date_input:
         st.error("「開始日期」必須早於「結束日期」！")
     else:
@@ -299,7 +304,7 @@ if st.session_state.data_loaded:
     df[f'MA_{ma3_val}'] = df['Close'].rolling(window=ma3_val).mean()
     df[f'MA_{ma4_val}'] = df['Close'].rolling(window=ma4_val).mean()
 
-    # 數據指標卡片
+    # 3. 數據指標卡片 (大小會依 CSS 保持完全一致)
     latest_close = float(df["Close"].iloc[-1])
     prev_close = float(df["Close"].iloc[-2]) if len(df) > 1 else latest_close
     price_change = latest_close - prev_close
@@ -312,16 +317,17 @@ if st.session_state.data_loaded:
     col3.metric("最新成交量", f"{latest_vol:,} 張")
     col4.metric("區間最高價", f"${df['High'].max():.2f}")
 
-    # 型態多選控制
+    # 4. 型態控制區塊（標題與按鈕均拿掉 Emoji 圖示）
     st.markdown("---")
-    st.markdown("#### 🎯 AI 幾何型態疊加控制")
+    st.markdown("#### AI 幾何型態疊加控制")
 
     pattern_options = [f"{p['date']} {p['name']}" for p in detected_patterns]
 
     if "selected_patterns" not in st.session_state:
         st.session_state.selected_patterns = []
 
-    col_b1, col_b2, _ = st.columns([1, 1, 4])
+    # 5. 全選與清爽按鈕（無漸層、無 Emoji）
+    col_b1, col_b2, _ = st.columns([1.2, 1.2, 3.6])
     with col_b1:
         if st.button("全選標註"):
             st.session_state.selected_patterns = pattern_options
@@ -456,4 +462,4 @@ if st.session_state.data_loaded:
         }
     )
 else:
-    st.info("👈 請在左側側邊欄輸入股票代碼與區間，點擊「開始量化分析」按鈕。")
+    st.info("請在左側側邊欄輸入股票代碼與區間，點擊「開始量化分析」按鈕。")
