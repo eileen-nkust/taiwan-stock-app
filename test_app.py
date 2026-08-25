@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 🎨 2. 自訂 CSS 美化樣式 (包含 5 項修改需求)
+# 🎨 2. 自訂 CSS 美化樣式
 st.markdown("""
 <style>
     /* 全域背景與字體優化 */
@@ -30,7 +30,7 @@ st.markdown("""
         color: #F0F6FC !important;
     }
     
-    /* 1. 主標題改為純白色、無漸層 */
+    /* 主標題改為純白色、無漸層 */
     .main-title {
         font-size: 2.2rem;
         font-weight: 700;
@@ -44,13 +44,13 @@ st.markdown("""
         margin-bottom: 1.5rem;
     }
 
-    /* 3. 數據卡片 (Metrics) 統一大小與容器美化 */
+    /* 數據卡片 (Metrics) 統一大小與容器美化 */
     [data-testid="stMetric"] {
         background-color: #161B22;
         border: 1px solid #30363D;
         padding: 12px 16px;
         border-radius: 12px;
-        height: 105px; /* 統一高度 */
+        height: 105px;
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -73,17 +73,17 @@ st.markdown("""
         border-right: 1px solid #30363D;
     }
 
-    /* 5. 按鈕樣式：無漸層、文字置中、字體加大、尺寸一致 */
+    /* 按鈕樣式：無漸層、文字置中、字體加大、尺寸一致 */
     div.stButton > button {
         width: 100%;
-        background-color: #1F6FEB !important; /* 純色無漸層 */
+        background-color: #1F6FEB !important;
         color: #FFFFFF !important;
         border: 1px solid #388BFD !important;
         border-radius: 8px;
         padding: 0.6rem 1rem;
-        font-size: 1.05rem !important; /* 字體稍微加大 */
+        font-size: 1.05rem !important;
         font-weight: 600;
-        text-align: center !important; /* 文字置中 */
+        text-align: center !important;
         transition: all 0.2s ease;
         box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
@@ -105,6 +105,12 @@ st.markdown("""
         border-radius: 8px !important;
         border: 1px solid #30363D !important;
     }
+
+    /* 💡 將日曆彈窗內的年份下拉選單進行倒轉（最新年份在最上方） */
+    div[data-baseweb="popover"] ul {
+        display: flex !important;
+        flex-direction: column-reverse !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -118,11 +124,11 @@ if "detected_patterns" not in st.session_state:
 if "company_name" not in st.session_state:
     st.session_state.company_name = ""
 
-# 1. & 2. 標頭渲染 (改純白，移除左側圖示與漸層)
+# 標頭渲染
 st.markdown('<div class="main-title">AI 智理財：量化技術走勢與型態掃描看板</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-title">自動精準辨識經典幾何圖形，支援滑鼠滾輪自由無級縮放與雙圖動態連動。</div>', unsafe_allow_html=True)
 
-# 4. 自動抓取中文名稱
+# 自動抓取中文名稱
 def get_taiwan_stock_name(stock_id):
     try:
         if stock_id in twstock.codes:
@@ -131,7 +137,7 @@ def get_taiwan_stock_name(stock_id):
         pass
     return f"股票 {stock_id}"
 
-# 5. K 線與幾何型態識別演算法
+# K 線與幾何型態識別演算法
 def detect_patterns(df):
     patterns = []
     prices = df['Close'].values
@@ -240,34 +246,26 @@ def detect_patterns(df):
 
     return sorted(patterns, key=lambda x: x["date"], reverse=True)
 
-# 6. 側邊欄設定
+# 側邊欄設定
 st.sidebar.markdown("### 標的查詢")
 stock_id = st.sidebar.text_input("台股代碼", value="2330").strip()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 時間區間")
+default_start = date.today() - timedelta(days=365*2)
+start_date_input = st.sidebar.date_input("開始日期", value=default_start, min_value=date(2010, 1, 1), max_value=date.today())
+end_date_input = st.sidebar.date_input("結束日期", value=date.today(), min_value=date(2010, 1, 1), max_value=date.today())
 
-# 生成年份列表（從今年開始倒序排至 2010 年，最新年份在最上面）
-current_year = date.today().year
-year_options = list(range(current_year, 2009, -1))
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 技術均線 (MA)")
+col_ma1, col_ma2 = st.sidebar.columns(2)
+ma1_val = col_ma1.number_input("MA 1", min_value=1, max_value=240, value=5)
+ma2_val = col_ma2.number_input("MA 2", min_value=1, max_value=240, value=10)
+col_ma3, col_ma4 = st.sidebar.columns(2)
+ma3_val = col_ma3.number_input("MA 3", min_value=1, max_value=240, value=20)
+ma4_val = col_ma4.number_input("MA 4", min_value=1, max_value=240, value=60)
 
-# --- 開始日期設定 ---
-col_s_yr, col_s_dt = st.sidebar.columns([1, 1])
-# 開始年份：預設為 2 年前
-default_start_year = current_year - 2
-start_year = col_s_yr.selectbox("開始年份", options=year_options, index=year_options.index(default_start_year))
-start_month_day = col_s_dt.date_input("開始月日", value=date(start_year, date.today().month, date.today().day), format="MM/DD")
-# 組合出最終開始日期
-start_date_input = date(start_year, start_month_day.month, start_month_day.day)
-
-# --- 結束日期設定 ---
-col_e_yr, col_e_dt = st.sidebar.columns([1, 1])
-end_year = col_e_yr.selectbox("結束年份", options=year_options, index=0) # 預設選最新年份
-end_month_day = col_e_dt.date_input("結束月日", value=date.today(), format="MM/DD")
-# 組合出最終結束日期
-end_date_input = date(end_year, end_month_day.month, end_month_day.day)
-
-# 5. 按鈕文字置中、無 Emoji 圖示
+st.sidebar.markdown("<br>", unsafe_allow_html=True)
 if st.sidebar.button("開始量化分析"):
     if start_date_input >= end_date_input:
         st.error("「開始日期」必須早於「結束日期」！")
@@ -299,7 +297,7 @@ if st.sidebar.button("開始量化分析"):
                 st.error(f"資料讀取失敗：{e}")
                 st.session_state.data_loaded = False
 
-# 7. 主畫面渲染
+# 主畫面渲染
 if st.session_state.data_loaded:
     df = st.session_state.df.copy()
     company_name = st.session_state.company_name
@@ -311,7 +309,7 @@ if st.session_state.data_loaded:
     df[f'MA_{ma3_val}'] = df['Close'].rolling(window=ma3_val).mean()
     df[f'MA_{ma4_val}'] = df['Close'].rolling(window=ma4_val).mean()
 
-    # 3. 數據指標卡片 (大小會依 CSS 保持完全一致)
+    # 數據指標卡片
     latest_close = float(df["Close"].iloc[-1])
     prev_close = float(df["Close"].iloc[-2]) if len(df) > 1 else latest_close
     price_change = latest_close - prev_close
@@ -324,7 +322,7 @@ if st.session_state.data_loaded:
     col3.metric("最新成交量", f"{latest_vol:,} 張")
     col4.metric("區間最高價", f"${df['High'].max():.2f}")
 
-    # 4. 型態控制區塊（標題與按鈕均拿掉 Emoji 圖示）
+    # 型態控制區塊
     st.markdown("---")
     st.markdown("#### AI 幾何型態疊加控制")
 
@@ -333,7 +331,6 @@ if st.session_state.data_loaded:
     if "selected_patterns" not in st.session_state:
         st.session_state.selected_patterns = []
 
-    # 5. 全選與清爽按鈕（無漸層、無 Emoji）
     col_b1, col_b2, _ = st.columns([1.2, 1.2, 3.6])
     with col_b1:
         if st.button("全選標註"):
