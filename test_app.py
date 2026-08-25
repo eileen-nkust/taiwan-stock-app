@@ -284,7 +284,7 @@ if st.sidebar.button("開始分析"):
                         increasing_line_color='red', decreasing_line_color='green', name="K線"
                     ), row=1, col=1)
 
-                    # 2. 均線 (設定 hoverinfo='skip' 讓它不顯示在動態對齊資訊卡內)
+                    # 2. 均線 (設定 hoverinfo='skip' 隱藏懸浮資訊)
                     fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma1_val}'], mode='lines', name=f'{ma1_val}日均線', line=dict(color='orange', width=1), hoverinfo='skip'), row=1, col=1)
                     fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma2_val}'], mode='lines', name=f'{ma2_val}日均線', line=dict(color='cyan', width=1), hoverinfo='skip'), row=1, col=1)
                     fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma3_val}'], mode='lines', name=f'{ma3_val}日均線', line=dict(color='yellow', width=1.2), hoverinfo='skip'), row=1, col=1)
@@ -333,7 +333,7 @@ if st.sidebar.button("開始分析"):
                         height=750,
                         hovermode="x unified",
                         margin=dict(r=60, t=50, l=20, b=100),
-                        # 將圖例移動到最左下角 (bottom-left)
+                        # 將圖例放置於最左下角
                         legend=dict(
                             orientation="h", 
                             yanchor="top", 
@@ -355,11 +355,10 @@ if st.sidebar.button("開始分析"):
                         spikedash='dash'
                     )
 
-                    # 將 K 線價格 (Y軸1) 與成交量 (Y軸2) 座標數值放右側
+                    # 修正 Y 軸：移除無效的 title_side，設定 side="right" 即可將刻度與標題一併放在右邊
                     fig.update_yaxes(
                         side="right", 
                         title="股價 (TWD)",
-                        title_side="right",
                         showspikes=True,
                         spikemode='across',
                         spikethickness=1,
@@ -371,7 +370,6 @@ if st.sidebar.button("開始分析"):
                     fig.update_yaxes(
                         side="right", 
                         title="成交量 (張)",
-                        title_side="right",
                         showspikes=True,
                         spikemode='across',
                         spikethickness=1,
