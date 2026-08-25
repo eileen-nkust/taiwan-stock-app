@@ -5,6 +5,7 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import twstock
+import calendar
 from datetime import datetime, date, timedelta
 from scipy.signal import find_peaks
 
@@ -94,17 +95,11 @@ st.markdown("""
     }
 
     /* 下拉選單與輸入框邊框圓角 */
-    .stTextInput input, .stDateInput input, .stNumberInput input {
+    .stTextInput input, .stNumberInput input, div[data-baseweb="select"] {
         background-color: #0D1117 !important;
         color: #C9D1D9 !important;
         border-radius: 8px !important;
         border: 1px solid #30363D !important;
-    }
-
-    /* 🔥 將日曆內部的「年份選擇選單」強制改為垂直倒序（最新年份在最頂部） */
-    div[data-baseweb="popover"] div[role="listbox"] {
-        display: flex !important;
-        flex-direction: column-reverse !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -248,10 +243,31 @@ stock_id = st.sidebar.text_input("台股代碼", value="2330").strip()
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 時間區間")
 
-# 使用標準 st.date_input，透過上方注入的 CSS 將選單內部改為最新年份在最頂端
-default_start = date.today() - timedelta(days=365*2)
-start_date_input = st.sidebar.date_input("開始日期", value=default_start, min_value=date(2010, 1, 1), max_value=date.today(), format="YYYY/MM/DD")
-end_date_input = st.sidebar.date_input("結束日期", value=date.today(), min_value=date(2010, 1, 1), max_value=date.today(), format="YYYY/MM/DD")
+# 年份選單：從最新年份開始倒序往下排至 2010 年
+curr_year = date.today().year
+year_options = list(range(curr_year, 2009, -1))
+month_options = list(range(1, 13))
+
+# --- 開始日期選擇器 ---
+st.sidebar.markdown("**開始日期**")
+col_s_yr, col_s_mo, col_s_dy = st.sidebar.columns([3, 2, 2])
+default_start_year = curr_year - 2
+s_year = col_s_yr.selectbox("年", year_options, index=year_options.index(default_start_year), key="s_yr", label_visibility="collapsed")
+s_month = col_s_mo.selectbox("月", month_options, index=date.today().month - 1, key="s_mo", label_visibility="collapsed")
+
+max_s_day = calendar.monthrange(s_year, s_month)[1]
+s_day = col_s_dy.selectbox("日", list(range(1, max_s_day + 1)), index=min(date.today().day, max_s_day) - 1, key="s_dy", label_visibility="collapsed")
+start_date_input = date(s_year, s_month, s_day)
+
+# --- 結束日期選擇器 ---
+st.sidebar.markdown("**結束日期**")
+col_e_yr, col_e_mo, col_e_dy = st.sidebar.columns([3, 2, 2])
+e_year = col_e_yr.selectbox("年", year_options, index=0, key="e_yr", label_visibility="collapsed")
+e_month = col_e_mo.selectbox("月", month_options, index=date.today().month - 1, key="e_mo", label_visibility="collapsed")
+
+max_e_day = calendar.monthrange(e_year, e_month)[1]
+e_day = col_e_dy.selectbox("日", list(range(1, max_e_day + 1)), index=min(date.today().day, max_e_day) - 1, key="e_dy", label_visibility="collapsed")
+end_date_input = date(e_year, e_month, e_day)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 技術均線 (MA)")
