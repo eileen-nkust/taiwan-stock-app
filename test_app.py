@@ -323,6 +323,72 @@ if st.sidebar.button("開始分析"):
                         name="成交量(張)", marker_color=colors
                     ), row=2, col=1)
 
+                    # 圖表版面配置：把圖例放下方，調整邊界給右側工具列空間
+                    fig.update_layout(
+                        title=f"{company_name} ({stock_id}) 技術指標與歷史 K 線型態圖",
+                        yaxis_title="股價 (TWD)",
+                        yaxis2_title="成交量 (張)",
+                        xaxis_rangeslider_visible=False,
+                        template="plotly_dark",
+                        height=750,
+                        hovermode="x unified",
+                        margin=dict(r=50, t=50, l=50, b=80), # 右側留出 50px 給工具列
+                        legend=dict(
+                            orientation="h", 
+                            yanchor="top", 
+                            y=-0.15, 
+                            xanchor="center", 
+                            x=0.5
+                        )
+                    )
+
+                    fig.update_xaxes(
+                        type='category', 
+                        tickangle=-45,
+                        nticks=12,
+                        showspikes=True,
+                        spikemode='across',
+                        spikesnap='cursor',
+                        spikethickness=1,
+                        spikecolor='#888888',
+                        spikedash='dash'
+                    )
+
+                    fig.update_yaxes(
+                        showspikes=True,
+                        spikemode='across',
+                        spikethickness=1,
+                        spikecolor='#888888',
+                        spikedash='dash'
+                    )
+
+                    # 注入 CSS：強行將 Plotly 工具列轉換為右側直立縱向 (Vertical Modebar)
+                    st.markdown("""
+                        <style>
+                        .modebar-container {
+                            top: 40px !important;
+                            right: 0px !important;
+                        }
+                        .modebar {
+                            flex-direction: column !important;
+                            background-color: rgba(30, 30, 30, 0.7) !important;
+                            border-radius: 6px;
+                            padding: 4px 2px !important;
+                        }
+                        .modebar-group {
+                            flex-direction: column !important;
+                            padding: 0 !important;
+                            margin-bottom: 5px !important;
+                        }
+                        .modebar-btn {
+                            display: block !important;
+                            margin: 2px 0 !important;
+                        }
+                        </style>
+                    """, unsafe_allow_html=True)
+
+                    st.plotly_chart(fig, use_container_width=True)
+
                     # ---- 關鍵更新：啟用十字游標 (Crosshair) 與動態對齊資訊卡 ----
                     fig.update_layout(
                         title=f"{company_name} ({stock_id}) 技術指標與歷史 K 線型態圖",
