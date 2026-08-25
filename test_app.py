@@ -391,6 +391,7 @@ if st.session_state.data_loaded:
         config={
             'scrollZoom': True,        # 👈 核心關鍵：開啟滑鼠滾輪縮放
             'displayModeBar': True,    # 顯示頂部輕量工具欄
+            'displaylogo': False,      # 隱藏Plotly 套件 標誌
             'modeBarButtonsToRemove': ['select2d', 'lasso2d'] # 移除不常用的選取工具
         }
     )
