@@ -285,7 +285,7 @@ if st.session_state.data_loaded:
         )
         hover_texts.append(text)
 
-    # 繪製圖表
+    # 繪製圖表 (確保連動縮放與滑鼠滾輪支援)
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.7, 0.3])
 
     # K線
@@ -326,26 +326,73 @@ if st.session_state.data_loaded:
                 font=dict(color="#FFFFFF", size=10), bgcolor=ann["color"], row=1, col=1
             )
 
-    # 成交量
+    # 成交量 (柱狀圖)
     colors = ['red' if c >= o else 'green' for c, o in zip(df['Close'], df['Open'])]
     fig.add_trace(go.Bar(x=df.index, y=df['Volume'] / 1000, name="成交量(張)", marker_color=colors, hoverinfo='skip'), row=2, col=1)
 
-    # Layout 設定
+    # Layout 設定：開啟滾輪縮放與自動調整高低
     fig.update_layout(
-        title=f"{company_name} ({stock_id}) 技術走勢圖",
+        title=f"{company_name} ({stock_id}) 技術走勢圖 (💡 提示：按住滑鼠左鍵可拖曳，滾動滾輪可調整放大/縮小時間軸)",
         xaxis_rangeslider_visible=False,
         template="plotly_dark",
         height=750,
         hovermode="x",
         hoverlabel=dict(bgcolor="rgba(25, 25, 25, 0.9)", font_size=12, font_color="#FFFFFF", align="left"),
         margin=dict(r=60, t=50, l=20, b=100),
-        legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="left", x=0)
+        legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="left", x=0),
+        dragmode="pan"  # 預設滑鼠左鍵為拖曳移動 (Pan) 模式
     )
 
-    fig.update_xaxes(type='category', tickangle=-45, nticks=12, showspikes=True, spikemode='across', spikethickness=1, spikecolor='#888888', spikedash='dash')
-    fig.update_yaxes(side="right", title="股價 (TWD)", showspikes=True, spikemode='across', spikethickness=1, spikecolor='#888888', spikedash='dash', row=1, col=1)
-    fig.update_yaxes(side="right", title="成交量 (張)", showspikes=True, spikemode='across', spikethickness=1, spikecolor='#888888', spikedash='dash', row=2, col=1)
+    # X 軸允許滾輪縮放
+    fig.update_xaxes(
+        type='category',
+        tickangle=-45,
+        nticks=12,
+        showspikes=True,
+        spikemode='across',
+        spikethickness=1,
+        spikecolor='#888888',
+        spikedash='dash',
+        fixedrange=False # 允許自由縮放 X 軸
+    )
 
-    st.plotly_chart(fig, use_container_width=True)
+    # Y 軸 (K線高低自動自我自適應，不被鎖死)
+    fig.update_yaxes(
+        side="right",
+        title="股價 (TWD)",
+        showspikes=True,
+        spikemode='across',
+        spikethickness=1,
+        spikecolor='#888888',
+        spikedash='dash',
+        autorange=True,
+        fixedrange=False,
+        row=1, col=1
+    )
+
+    # Y 軸 (成交量高低自動自適應，放大時看清全貌)
+    fig.update_yaxes(
+        side="right",
+        title="成交量 (張)",
+        showspikes=True,
+        spikemode='across',
+        spikethickness=1,
+        spikecolor='#888888',
+        spikedash='dash',
+        autorange=True,
+        fixedrange=False,
+        row=2, col=1
+    )
+
+    # 渲染圖表時，加入 config 啟用滾輪縮放 (scrollZoom: True)
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={
+            'scrollZoom': True,        # 👈 核心關鍵：開啟滑鼠滾輪縮放
+            'displayModeBar': True,    # 顯示頂部輕量工具欄
+            'modeBarButtonsToRemove': ['select2d', 'lasso2d'] # 移除不常用的選取工具
+        }
+    )
 else:
     st.info("👈 請在左側輸入股票代碼與時間區間，點擊「開始分析」即可產生技術圖表。")
