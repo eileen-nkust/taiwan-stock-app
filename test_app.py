@@ -278,19 +278,19 @@ if st.sidebar.button("開始分析"):
                         row_heights=[0.7, 0.3]
                     )
 
-                    # 1. K線
+                    # 1. K線 (動態對齊資訊卡保留)
                     fig.add_trace(go.Candlestick(
                         x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
                         increasing_line_color='red', decreasing_line_color='green', name="K線"
                     ), row=1, col=1)
 
-                    # 2. 均線
-                    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma1_val}'], mode='lines', name=f'{ma1_val}日均線', line=dict(color='orange', width=1)), row=1, col=1)
-                    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma2_val}'], mode='lines', name=f'{ma2_val}日均線', line=dict(color='cyan', width=1)), row=1, col=1)
-                    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma3_val}'], mode='lines', name=f'{ma3_val}日均線', line=dict(color='yellow', width=1.2)), row=1, col=1)
-                    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma4_val}'], mode='lines', name=f'{ma4_val}日均線', line=dict(color='magenta', width=1.2)), row=1, col=1)
+                    # 2. 均線 (設定 hoverinfo='skip' 讓它不顯示在動態對齊資訊卡內)
+                    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma1_val}'], mode='lines', name=f'{ma1_val}日均線', line=dict(color='orange', width=1), hoverinfo='skip'), row=1, col=1)
+                    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma2_val}'], mode='lines', name=f'{ma2_val}日均線', line=dict(color='cyan', width=1), hoverinfo='skip'), row=1, col=1)
+                    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma3_val}'], mode='lines', name=f'{ma3_val}日均線', line=dict(color='yellow', width=1.2), hoverinfo='skip'), row=1, col=1)
+                    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma4_val}'], mode='lines', name=f'{ma4_val}日均線', line=dict(color='magenta', width=1.2), hoverinfo='skip'), row=1, col=1)
 
-                    # 3. 型態骨架標註
+                    # 3. 型態骨架標註 (同樣 hoverinfo='skip')
                     geo_patterns = [p for p in detected_patterns if "K線" not in p["type"]][:10]
                     for p in geo_patterns:
                         if p["skeleton_x"]:
@@ -298,14 +298,16 @@ if st.sidebar.button("開始分析"):
                                 x=p["skeleton_x"], y=p["skeleton_y"], 
                                 mode='lines+markers', name=f"{p['name']}",
                                 line=dict(color=p["skeleton_color"], width=2.5),
-                                marker=dict(size=6, color=p["skeleton_color"])
+                                marker=dict(size=6, color=p["skeleton_color"]),
+                                hoverinfo='skip'
                             ), row=1, col=1)
 
                         if p["neck_x"]:
                             fig.add_trace(go.Scatter(
                                 x=p["neck_x"], y=p["neck_y"], 
                                 mode='lines', name=f"{p['name']} 頸線",
-                                line=dict(color=p["neck_color"], width=1.8, dash="dash")
+                                line=dict(color=p["neck_color"], width=1.8, dash="dash"),
+                                hoverinfo='skip'
                             ), row=1, col=1)
 
                         for ann in p.get("annotations", []):
@@ -316,29 +318,28 @@ if st.sidebar.button("開始分析"):
                                 row=1, col=1
                             )
 
-                    # 4. 成交量
+                    # 4. 成交量 (動態對齊資訊卡保留)
                     colors = ['red' if c >= o else 'green' for c, o in zip(df['Close'], df['Open'])]
                     fig.add_trace(go.Bar(
                         x=df.index, y=df['Volume'] / 1000, 
                         name="成交量(張)", marker_color=colors
                     ), row=2, col=1)
 
-                    # 圖表版面配置：把圖例放下方，調整邊界給右側工具列空間
+                    # 版面配置調整
                     fig.update_layout(
                         title=f"{company_name} ({stock_id}) 技術指標與歷史 K 線型態圖",
-                        yaxis_title="股價 (TWD)",
-                        yaxis2_title="成交量 (張)",
                         xaxis_rangeslider_visible=False,
                         template="plotly_dark",
                         height=750,
                         hovermode="x unified",
-                        margin=dict(r=50, t=50, l=50, b=80), # 右側留出 50px 給工具列
+                        margin=dict(r=60, t=50, l=20, b=100),
+                        # 將圖例移動到最左下角 (bottom-left)
                         legend=dict(
                             orientation="h", 
                             yanchor="top", 
-                            y=-0.15, 
-                            xanchor="center", 
-                            x=0.5
+                            y=-0.2, 
+                            xanchor="left", 
+                            x=0
                         )
                     )
 
@@ -354,72 +355,29 @@ if st.sidebar.button("開始分析"):
                         spikedash='dash'
                     )
 
+                    # 將 K 線價格 (Y軸1) 與成交量 (Y軸2) 座標數值放右側
                     fig.update_yaxes(
+                        side="right", 
+                        title="股價 (TWD)",
+                        title_side="right",
                         showspikes=True,
                         spikemode='across',
                         spikethickness=1,
                         spikecolor='#888888',
-                        spikedash='dash'
+                        spikedash='dash',
+                        row=1, col=1
                     )
-
-                    # 注入 CSS：強行將 Plotly 工具列轉換為右側直立縱向 (Vertical Modebar)
-                    st.markdown("""
-                        <style>
-                        .modebar-container {
-                            top: 40px !important;
-                            right: 0px !important;
-                        }
-                        .modebar {
-                            flex-direction: column !important;
-                            background-color: rgba(30, 30, 30, 0.7) !important;
-                            border-radius: 6px;
-                            padding: 4px 2px !important;
-                        }
-                        .modebar-group {
-                            flex-direction: column !important;
-                            padding: 0 !important;
-                            margin-bottom: 5px !important;
-                        }
-                        .modebar-btn {
-                            display: block !important;
-                            margin: 2px 0 !important;
-                        }
-                        </style>
-                    """, unsafe_allow_html=True)
-
-                    st.plotly_chart(fig, use_container_width=True)
-
-                    # ---- 關鍵更新：啟用十字游標 (Crosshair) 與動態對齊資訊卡 ----
-                    fig.update_layout(
-                        title=f"{company_name} ({stock_id}) 技術指標與歷史 K 線型態圖",
-                        yaxis_title="股價 (TWD)",
-                        yaxis2_title="成交量 (張)",
-                        xaxis_rangeslider_visible=False,
-                        template="plotly_dark",
-                        height=750,
-                        hovermode="x unified",  # 鼠標移到某個日期時，自動整合該日期所有數據顯示
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                    )
-
-                    # 設定 X 軸與 Y 軸的十字對準虛線 (Crosshair)
-                    fig.update_xaxes(
-                        type='category', 
-                        tickangle=-45,
-                        nticks=12,
-                        showspikes=True,       # 開啟 X 軸導引線
-                        spikemode='across',    # 貫穿整個高低區塊
-                        spikesnap='cursor',    # 貼合滑鼠
-                        spikethickness=1,
-                        spikecolor='#888888',
-                        spikedash='dash'       # 虛線樣式
-                    )
-
+                    
                     fig.update_yaxes(
-                        showspikes=True,       # 開啟 Y 軸導引線
+                        side="right", 
+                        title="成交量 (張)",
+                        title_side="right",
+                        showspikes=True,
                         spikemode='across',
                         spikethickness=1,
                         spikecolor='#888888',
-                        spikedash='dash'
+                        spikedash='dash',
+                        row=2, col=1
                     )
 
                     st.plotly_chart(fig, use_container_width=True)
