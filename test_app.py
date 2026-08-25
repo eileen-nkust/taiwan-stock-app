@@ -251,6 +251,38 @@ if st.sidebar.button("開始分析"):
                     col3.metric("最新成交量 (張)", f"{latest_vol:,}", f"{vol_change:+,} 張 ({vol_pct_change:+.1f}%)")
                     col4.metric("區間最高價", f"${df['High'].max():.2f}")
 
+                    # ---- Hover 文字預先格式化 (比照富途牛牛樣式) ----
+                    df['Prev_Close'] = df['Close'].shift(1)
+                    df['Change'] = df['Close'] - df['Prev_Close']
+                    df['Pct_Change'] = (df['Change'] / df['Prev_Close']) * 100
+
+                    weekday_map = {0: "週一", 1: "週二", 2: "週三", 3: "週四", 4: "週五", 5: "週六", 6: "週日"}
+                    
+                    hover_texts = []
+                    for dt, row in df.iterrows():
+                        date_str = dt.strftime('%Y/%m/%d')
+                        weekday_str = weekday_map[dt.weekday()]
+                        
+                        change_val = row['Change'] if pd.notnull(row['Change']) else 0.0
+                        pct_val = row['Pct_Change'] if pd.notnull(row['Pct_Change']) else 0.0
+                        vol_zhang = int(row['Volume'] // 1000)
+                        
+                        # 漲紅跌綠顏色設定
+                        color = "#FF4500" if change_val >= 0 else "#00FF7F"
+                        sign = "+" if change_val >= 0 else ""
+
+                        text = (
+                            f"<b>{date_str} {weekday_str}</b><br>"
+                            f"開盤：<span style='color:{color}'>{row['Open']:.3f}</span><br>"
+                            f"最高：<span style='color:{color}'>{row['High']:.3f}</span><br>"
+                            f"最低：<span style='color:{color}'>{row['Low']:.3f}</span><br>"
+                            f"收盤：<span style='color:{color}'>{row['Close']:.3f}</span><br>"
+                            f"漲跌額：<span style='color:{color}'>{sign}{change_val:.3f}</span><br>"
+                            f"漲跌幅：<span style='color:{color}'>{sign}{pct_val:.2f}%</span><br>"
+                            f"成交量(張)：{vol_zhang:,}"
+                        )
+                        hover_texts.append(text)
+
                     df.index = df.index.strftime('%Y-%m-%d')
                     detected_patterns = detect_patterns(df)
 
@@ -278,19 +310,21 @@ if st.sidebar.button("開始分析"):
                         row_heights=[0.7, 0.3]
                     )
 
-                    # 1. K線 (動態對齊資訊卡保留)
+                    # 1. K線 (使用自訂文字卡與固定右上角位置)
                     fig.add_trace(go.Candlestick(
                         x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
-                        increasing_line_color='red', decreasing_line_color='green', name="K線"
+                        increasing_line_color='red', decreasing_line_color='green', name="K線",
+                        text=hover_texts,
+                        hoverinfo="text"
                     ), row=1, col=1)
 
-                    # 2. 均線 (設定 hoverinfo='skip' 隱藏懸浮資訊)
+                    # 2. 均線 (隱藏 hover 避免干擾)
                     fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma1_val}'], mode='lines', name=f'{ma1_val}日均線', line=dict(color='orange', width=1), hoverinfo='skip'), row=1, col=1)
                     fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma2_val}'], mode='lines', name=f'{ma2_val}日均線', line=dict(color='cyan', width=1), hoverinfo='skip'), row=1, col=1)
                     fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma3_val}'], mode='lines', name=f'{ma3_val}日均線', line=dict(color='yellow', width=1.2), hoverinfo='skip'), row=1, col=1)
                     fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma4_val}'], mode='lines', name=f'{ma4_val}日均線', line=dict(color='magenta', width=1.2), hoverinfo='skip'), row=1, col=1)
 
-                    # 3. 型態骨架標註 (同樣 hoverinfo='skip')
+                    # 3. 型態骨架標註 (隱藏 hover)
                     geo_patterns = [p for p in detected_patterns if "K線" not in p["type"]][:10]
                     for p in geo_patterns:
                         if p["skeleton_x"]:
@@ -318,11 +352,12 @@ if st.sidebar.button("開始分析"):
                                 row=1, col=1
                             )
 
-                    # 4. 成交量 (動態對齊資訊卡保留)
+                    # 4. 成交量 (隱藏 hover，資訊已整合在頂部卡片)
                     colors = ['red' if c >= o else 'green' for c, o in zip(df['Close'], df['Open'])]
                     fig.add_trace(go.Bar(
                         x=df.index, y=df['Volume'] / 1000, 
-                        name="成交量(張)", marker_color=colors
+                        name="成交量(張)", marker_color=colors,
+                        hoverinfo='skip'
                     ), row=2, col=1)
 
                     # 版面配置調整
@@ -331,9 +366,18 @@ if st.sidebar.button("開始分析"):
                         xaxis_rangeslider_visible=False,
                         template="plotly_dark",
                         height=750,
-                        hovermode="x unified",
+                        hovermode="x",
+                        # 設定 Hover 資訊卡樣式與固定位置 (固定於右上角)
+                        hoverlabel=dict(
+                            bgcolor="rgba(25, 25, 25, 0.9)",
+                            font_size=12,
+                            font_family="Arial, Microsoft JhengHei",
+                            font_color="#FFFFFF",
+                            bordercolor="#555555",
+                            align="left",
+                            namelength=-1
+                        ),
                         margin=dict(r=60, t=50, l=20, b=100),
-                        # 將圖例放置於最左下角
                         legend=dict(
                             orientation="h", 
                             yanchor="top", 
@@ -355,7 +399,7 @@ if st.sidebar.button("開始分析"):
                         spikedash='dash'
                     )
 
-                    # 修正 Y 軸：移除無效的 title_side，設定 side="right" 即可將刻度與標題一併放在右邊
+                    # 右側股價與成交量 Y 軸刻度
                     fig.update_yaxes(
                         side="right", 
                         title="股價 (TWD)",
