@@ -30,7 +30,7 @@ st.markdown("""
         color: #F0F6FC !important;
     }
     
-    /* 主標題改為純白色、無漸層 */
+    /* 主標題改為純白色 */
     .main-title {
         font-size: 2.2rem;
         font-weight: 700;
@@ -73,7 +73,7 @@ st.markdown("""
         border-right: 1px solid #30363D;
     }
 
-    /* 按鈕樣式：無漸層、文字置中、字體加大、尺寸一致 */
+    /* 按鈕樣式：無漸層、文字置中、字體加大 */
     div.stButton > button {
         width: 100%;
         background-color: #1F6FEB !important;
@@ -94,22 +94,11 @@ st.markdown("""
     }
 
     /* 下拉選單與輸入框邊框圓角 */
-    .stTextInput input, .stDateInput input, .stNumberInput input {
+    .stTextInput input, .stDateInput input, .stNumberInput input, div[data-baseweb="select"] {
         background-color: #0D1117 !important;
         color: #C9D1D9 !important;
         border-radius: 8px !important;
         border: 1px solid #30363D !important;
-    }
-    .stMultiSelect div[data-baseweb="select"] {
-        background-color: #0D1117 !important;
-        border-radius: 8px !important;
-        border: 1px solid #30363D !important;
-    }
-
-    /* 💡 將日曆彈窗內的年份下拉選單進行倒轉（最新年份在最上方） */
-    div[data-baseweb="popover"] ul {
-        display: flex !important;
-        flex-direction: column-reverse !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -252,9 +241,28 @@ stock_id = st.sidebar.text_input("台股代碼", value="2330").strip()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 時間區間")
-default_start = date.today() - timedelta(days=365*2)
-start_date_input = st.sidebar.date_input("開始日期", value=default_start, min_value=date(2010, 1, 1), max_value=date.today())
-end_date_input = st.sidebar.date_input("結束日期", value=date.today(), min_value=date(2010, 1, 1), max_value=date.today())
+
+# 生成最新到最舊的年份選單（最新年份排最上面並往下遞減）
+current_yr = date.today().year
+year_list = list(range(current_yr, 2009, -1))
+
+# --- 開始日期 ---
+col_s1, col_s2 = st.sidebar.columns([1, 1])
+start_yr = col_s1.selectbox("開始年份", year_list, index=year_list.index(current_yr - 2))
+s_dt = col_s2.date_input("開始月日", value=date.today(), format="MM/DD")
+try:
+    start_date_input = s_dt.replace(year=start_yr)
+except ValueError: # 防範 2/29 閏年邊界
+    start_date_input = s_dt.replace(year=start_yr, day=28)
+
+# --- 結束日期 ---
+col_e1, col_e2 = st.sidebar.columns([1, 1])
+end_yr = col_e1.selectbox("結束年份", year_list, index=0)
+e_dt = col_e2.date_input("結束月日", value=date.today(), format="MM/DD")
+try:
+    end_date_input = e_dt.replace(year=end_yr)
+except ValueError:
+    end_date_input = e_dt.replace(year=end_yr, day=28)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 技術均線 (MA)")
