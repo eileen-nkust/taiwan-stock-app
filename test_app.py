@@ -113,7 +113,7 @@ def get_taiwan_stock_name(stock_id):
         pass
     return f"股票 {stock_id}"
 
-# K 線與幾何型態識別演算法
+# K 線與幾何型態識別演算法 (修正 Bug 版)
 def detect_patterns(df):
     patterns = []
     prices = df['Close'].values
@@ -197,14 +197,14 @@ def detect_patterns(df):
                     "annotations": [{"x": dates[t2], "y": l2, "text": "頭肩底", "color": "#00FFFF"}]
                 })
 
-    # 4. 頭肩頂
+    # 4. 頭肩頂 (修復 mid_t1 / mid_t2 變數錯誤)
     for i in range(len(peaks) - 2):
         p1, p2, p3 = peaks[i], peaks[i+1], peaks[i+2]
         h1, h2, h3 = highs[p1], highs[p2], highs[p3]
         if h2 > h1 and h2 > h3 and abs(h1 - h3) / min(h1, h3) < 0.06:
             mid_t1 = [t for t in troughs if p1 < t < p2]
             mid_t2 = [t for t in troughs if p2 < t < p3]
-            if mid_p1 and mid_p2:
+            if mid_t1 and mid_t2:
                 t1_idx, t2_idx = mid_t1[0], mid_t2[0]
                 patterns.append({
                     "id": f"頭肩頂_{dates[p3]}",
@@ -233,7 +233,7 @@ curr_year = date.today().year
 year_options = list(range(curr_year, 2009, -1))
 month_options = list(range(1, 13))
 
-# --- 開始日期選擇器 ---
+# 開始日期選擇器
 st.sidebar.markdown("**開始日期**")
 col_s_yr, col_s_mo, col_s_dy = st.sidebar.columns([3, 2, 2])
 default_start_year = curr_year - 2
@@ -244,7 +244,7 @@ max_s_day = calendar.monthrange(s_year, s_month)[1]
 s_day = col_s_dy.selectbox("日", list(range(1, max_s_day + 1)), index=min(date.today().day, max_s_day) - 1, key="s_dy", label_visibility="collapsed")
 start_date_input = date(s_year, s_month, s_day)
 
-# --- 結束日期選擇器 ---
+# 結束日期選擇器
 st.sidebar.markdown("**結束日期**")
 col_e_yr, col_e_mo, col_e_dy = st.sidebar.columns([3, 2, 2])
 e_year = col_e_yr.selectbox("年", year_options, index=0, key="e_yr", label_visibility="collapsed")
@@ -346,7 +346,7 @@ if st.session_state.data_loaded:
         key="selected_patterns"
     )
 
-    # 準備最新一筆數據作為預設固定顯示資訊
+    # 準備最新一筆數據放置於左上角固定告示牌
     df['Prev_Close'] = df['Close'].shift(1)
     df['Change'] = df['Close'] - df['Prev_Close']
     df['Pct_Change'] = (df['Change'] / df['Prev_Close']) * 100
@@ -359,33 +359,32 @@ if st.session_state.data_loaded:
     latest_sign = "+" if latest_row['Change'] >= 0 else ""
 
     fixed_info_text = (
-        f"<b>{df.index[-1].replace('-','/')} {latest_weekday}</b><br>"
-        f"開盤：<span style='color:{latest_color}'>{latest_row['Open']:.2f}</span><br>"
-        f"最高：<span style='color:{latest_color}'>{latest_row['High']:.2f}</span><br>"
-        f"最低：<span style='color:{latest_color}'>{latest_row['Low']:.2f}</span><br>"
+        f"<b>最新數據 [{df.index[-1].replace('-','/')} {latest_weekday}]</b><br>"
+        f"開盤：<span style='color:{latest_color}'>{latest_row['Open']:.2f}</span> | "
+        f"最高：<span style='color:{latest_color}'>{latest_row['High']:.2f}</span> | "
+        f"最低：<span style='color:{latest_color}'>{latest_row['Low']:.2f}</span> | "
         f"收盤：<span style='color:{latest_color}'>{latest_row['Close']:.2f}</span><br>"
-        f"漲跌額：<span style='color:{latest_color}'>{latest_sign}{latest_row['Change']:.2f}</span><br>"
-        f"漲跌幅：<span style='color:{latest_color}'>{latest_sign}{latest_row['Pct_Change']:.2f}%</span><br>"
+        f"漲跌：<span style='color:{latest_color}'>{latest_sign}{latest_row['Change']:.2f} ({latest_sign}{latest_row['Pct_Change']:.2f}%)</span> | "
         f"成交量：{int(latest_row['Volume'] // 1000):,} 張"
     )
 
-    # Plotly 繪圖：強行共用 X 軸 (shared_xaxes=True)
+    # 建立雙子圖 (共用 X 軸)
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.72, 0.28])
 
-    # K線（關閉 hoverinfo="all" 改為 hoverinfo="x" 以配合純縱向十字線）
+    # K線圖 (關閉原生的移動 hoverlabel)
     fig.add_trace(go.Candlestick(
         x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
         increasing_line_color='#FF4500', decreasing_line_color='#00FF7F', name="K線",
-        hoverinfo="x"
+        hoverinfo='none'
     ), row=1, col=1)
 
-    # 均線
-    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma1_val}'], mode='lines', name=f'{ma1_val}MA', line=dict(color='#FFD700', width=1.2), hoverinfo='skip'), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma2_val}'], mode='lines', name=f'{ma2_val}MA', line=dict(color='#00FFFF', width=1.2), hoverinfo='skip'), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma3_val}'], mode='lines', name=f'{ma3_val}MA', line=dict(color='#FF00FF', width=1.5), hoverinfo='skip'), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma4_val}'], mode='lines', name=f'{ma4_val}MA', line=dict(color='#1E90FF', width=1.5), hoverinfo='skip'), row=1, col=1)
+    # 均線 Trace
+    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma1_val}'], mode='lines', name=f'{ma1_val}MA', line=dict(color='#FFD700', width=1.2), hoverinfo='none'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma2_val}'], mode='lines', name=f'{ma2_val}MA', line=dict(color='#00FFFF', width=1.2), hoverinfo='none'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma3_val}'], mode='lines', name=f'{ma3_val}MA', line=dict(color='#FF00FF', width=1.5), hoverinfo='none'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma4_val}'], mode='lines', name=f'{ma4_val}MA', line=dict(color='#1E90FF', width=1.5), hoverinfo='none'), row=1, col=1)
 
-    # 繪製選取的幾何型態
+    # 繪製幾何型態
     patterns_to_draw = [
         p for p, opt_str in zip(detected_patterns, pattern_options) 
         if opt_str in selected_options
@@ -395,14 +394,14 @@ if st.session_state.data_loaded:
             fig.add_trace(go.Scatter(
                 x=p["skeleton_x"], y=p["skeleton_y"], mode='lines+markers',
                 name=f"{p['name']}", line=dict(color=p["skeleton_color"], width=2.5),
-                marker=dict(size=6, color=p["skeleton_color"]), hoverinfo='skip'
+                marker=dict(size=6, color=p["skeleton_color"]), hoverinfo='none'
             ), row=1, col=1)
 
         if p["neck_x"]:
             fig.add_trace(go.Scatter(
                 x=p["neck_x"], y=p["neck_y"], mode='lines',
                 name=f"{p['name']} 頸線", line=dict(color=p["neck_color"], width=1.8, dash="dash"),
-                hoverinfo='skip'
+                hoverinfo='none'
             ), row=1, col=1)
 
         for ann in p.get("annotations", []):
@@ -412,14 +411,14 @@ if st.session_state.data_loaded:
                 font=dict(color="#FFFFFF", size=11), bgcolor=ann["color"], row=1, col=1
             )
 
-    # 成交量
+    # 成交量圖
     colors = ['#FF4500' if c >= o else '#00FF7F' for c, o in zip(df['Close'], df['Open'])]
-    fig.add_trace(go.Bar(x=df.index, y=df['Volume'] / 1000, name="成交量(張)", marker_color=colors, hoverinfo='x'), row=2, col=1)
+    fig.add_trace(go.Bar(x=df.index, y=df['Volume'] / 1000, name="成交量(張)", marker_color=colors, hoverinfo='none'), row=2, col=1)
 
-    # 💡 核心改動 1：使用獨立 Annotation 將資訊框「完美固定」在左上角 (xref="paper", yref="paper")
+    # 固定左上角告示牌 Annotation
     fig.add_annotation(
         xref="paper", yref="paper",
-        x=0.01, y=0.98,  # 左上角相對位置
+        x=0.01, y=0.98,
         text=fixed_info_text,
         showarrow=False,
         align="left",
@@ -430,7 +429,7 @@ if st.session_state.data_loaded:
         borderpad=8
     )
 
-    # 版面配置
+    # Layout 配置
     fig.update_layout(
         title=f"<b>{company_name} ({stock_id}) 全功能技術分析圖</b>",
         title_font=dict(size=18, color="#F0F6FC"),
@@ -439,13 +438,12 @@ if st.session_state.data_loaded:
         paper_bgcolor="#161B22",
         plot_bgcolor="#0D1117",
         height=720,
-        hovermode="x",
         margin=dict(r=20, t=50, l=20, b=80),
         legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="left", x=0, font=dict(color="#C9D1D9")),
         dragmode="pan"
     )
 
-    # 💡 核心改動 2：強制設定雙 X 軸連動與縱向貫穿線
+    # X 軸：垂直十字虛線貫穿全圖 (Spikemode="across")
     fig.update_xaxes(
         type='category', 
         tickangle=-45, 
@@ -453,7 +451,7 @@ if st.session_state.data_loaded:
         showgrid=True, 
         gridcolor="#21262D",
         showspikes=True, 
-        spikemode='across+marker',  # 貫穿全圖
+        spikemode='across',
         spikesnap='cursor',
         spikethickness=1, 
         spikecolor='#8B949E', 
@@ -461,6 +459,7 @@ if st.session_state.data_loaded:
         fixedrange=False
     )
 
+    # Y 軸設定
     fig.update_yaxes(
         side="right", title="股價 (TWD)",
         showgrid=True, gridcolor="#21262D",
