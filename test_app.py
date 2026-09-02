@@ -20,32 +20,24 @@ st.set_page_config(
 # 🎨 2. 自訂 CSS 美化樣式
 st.markdown("""
 <style>
-    /* 全域背景與字體優化 */
     .stApp {
         background-color: #0E1117;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
-    
-    /* 標題與內文顏色 */
     h1, h2, h3, h4, h5, h6, label {
         color: #F0F6FC !important;
     }
-    
-    /* 主標題改為純白色 */
     .main-title {
         font-size: 2.2rem;
         font-weight: 700;
         color: #FFFFFF !important;
         margin-bottom: 0.2rem;
     }
-    
     .sub-title {
         color: #8B949E;
         font-size: 0.95rem;
         margin-bottom: 1.5rem;
     }
-
-    /* 數據卡片 (Metrics) 統一大小與容器美化 */
     [data-testid="stMetric"] {
         background-color: #161B22;
         border: 1px solid #30363D;
@@ -67,14 +59,10 @@ st.markdown("""
         font-weight: 700;
         color: #58A6FF !important;
     }
-
-    /* 側邊欄 Sidebar 美化 */
     section[data-testid="stSidebar"] {
         background-color: #161B22;
         border-right: 1px solid #30363D;
     }
-
-    /* 按鈕樣式：無漸層、文字置中、字體加大 */
     div.stButton > button {
         width: 100%;
         background-color: #1F6FEB !important;
@@ -93,8 +81,6 @@ st.markdown("""
         border-color: #58A6FF !important;
         transform: translateY(-1px);
     }
-
-    /* 下拉選單與輸入框邊框圓角 */
     .stTextInput input, .stNumberInput input, div[data-baseweb="select"] {
         background-color: #0D1117 !important;
         color: #C9D1D9 !important;
@@ -142,7 +128,7 @@ def detect_patterns(df):
     peaks, _ = find_peaks(highs, distance=5)
     troughs, _ = find_peaks(-lows, distance=5)
 
-    # 1. W底 (Double Bottom)
+    # 1. W底
     for i in range(len(troughs) - 1):
         t1, t2 = troughs[i], troughs[i+1]
         l1, l2 = lows[t1], lows[t2]
@@ -165,7 +151,7 @@ def detect_patterns(df):
                     "annotations": [{"x": dates[t2], "y": l2, "text": "W底", "color": "#00FF7F"}]
                 })
 
-    # 2. M頭 (Double Top)
+    # 2. M頭
     for i in range(len(peaks) - 1):
         p1, p2 = peaks[i], peaks[i+1]
         h1, h2 = highs[p1], highs[p2]
@@ -218,7 +204,7 @@ def detect_patterns(df):
         if h2 > h1 and h2 > h3 and abs(h1 - h3) / min(h1, h3) < 0.06:
             mid_t1 = [t for t in troughs if p1 < t < p2]
             mid_t2 = [t for t in troughs if p2 < t < p3]
-            if mid_t1 and mid_t2:
+            if mid_p1 and mid_p2:
                 t1_idx, t2_idx = mid_t1[0], mid_t2[0]
                 patterns.append({
                     "id": f"頭肩頂_{dates[p3]}",
@@ -360,43 +346,37 @@ if st.session_state.data_loaded:
         key="selected_patterns"
     )
 
-    # Hover 卡片內容設定
+    # 準備最新一筆數據作為預設固定顯示資訊
     df['Prev_Close'] = df['Close'].shift(1)
     df['Change'] = df['Close'] - df['Prev_Close']
     df['Pct_Change'] = (df['Change'] / df['Prev_Close']) * 100
     weekday_map = {0: "週一", 1: "週二", 2: "週三", 3: "週四", 4: "週五", 5: "週六", 6: "週日"}
 
-    hover_texts = []
-    for dt_str, row in df.iterrows():
-        dt = datetime.strptime(dt_str, '%Y-%m-%d')
-        weekday_str = weekday_map[dt.weekday()]
-        change_val = row['Change'] if pd.notnull(row['Change']) else 0.0
-        pct_val = row['Pct_Change'] if pd.notnull(row['Pct_Change']) else 0.0
-        vol_zhang = int(row['Volume'] // 1000)
-        
-        color = "#FF4500" if change_val >= 0 else "#00FF7F"
-        sign = "+" if change_val >= 0 else ""
+    latest_row = df.iloc[-1]
+    latest_dt = datetime.strptime(df.index[-1], '%Y-%m-%d')
+    latest_weekday = weekday_map[latest_dt.weekday()]
+    latest_color = "#FF4500" if latest_row['Change'] >= 0 else "#00FF7F"
+    latest_sign = "+" if latest_row['Change'] >= 0 else ""
 
-        text = (
-            f"<b>{dt_str.replace('-','/')} {weekday_str}</b><br>"
-            f"開盤：<span style='color:{color}'>{row['Open']:.2f}</span><br>"
-            f"最高：<span style='color:{color}'>{row['High']:.2f}</span><br>"
-            f"最低：<span style='color:{color}'>{row['Low']:.2f}</span><br>"
-            f"收盤：<span style='color:{color}'>{row['Close']:.2f}</span><br>"
-            f"漲跌額：<span style='color:{color}'>{sign}{change_val:.2f}</span><br>"
-            f"漲跌幅：<span style='color:{color}'>{sign}{pct_val:.2f}%</span><br>"
-            f"成交量：{vol_zhang:,} 張"
-        )
-        hover_texts.append(text)
+    fixed_info_text = (
+        f"<b>{df.index[-1].replace('-','/')} {latest_weekday}</b><br>"
+        f"開盤：<span style='color:{latest_color}'>{latest_row['Open']:.2f}</span><br>"
+        f"最高：<span style='color:{latest_color}'>{latest_row['High']:.2f}</span><br>"
+        f"最低：<span style='color:{latest_color}'>{latest_row['Low']:.2f}</span><br>"
+        f"收盤：<span style='color:{latest_color}'>{latest_row['Close']:.2f}</span><br>"
+        f"漲跌額：<span style='color:{latest_color}'>{latest_sign}{latest_row['Change']:.2f}</span><br>"
+        f"漲跌幅：<span style='color:{latest_color}'>{latest_sign}{latest_row['Pct_Change']:.2f}%</span><br>"
+        f"成交量：{int(latest_row['Volume'] // 1000):,} 張"
+    )
 
-    # Plotly 繪圖
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.72, 0.28])
+    # Plotly 繪圖：強行共用 X 軸 (shared_xaxes=True)
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.72, 0.28])
 
-    # K線
+    # K線（關閉 hoverinfo="all" 改為 hoverinfo="x" 以配合純縱向十字線）
     fig.add_trace(go.Candlestick(
         x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
         increasing_line_color='#FF4500', decreasing_line_color='#00FF7F', name="K線",
-        text=hover_texts, hoverinfo="text"
+        hoverinfo="x"
     ), row=1, col=1)
 
     # 均線
@@ -434,9 +414,23 @@ if st.session_state.data_loaded:
 
     # 成交量
     colors = ['#FF4500' if c >= o else '#00FF7F' for c, o in zip(df['Close'], df['Open'])]
-    fig.add_trace(go.Bar(x=df.index, y=df['Volume'] / 1000, name="成交量(張)", marker_color=colors, hoverinfo='skip'), row=2, col=1)
+    fig.add_trace(go.Bar(x=df.index, y=df['Volume'] / 1000, name="成交量(張)", marker_color=colors, hoverinfo='x'), row=2, col=1)
 
-    # 版面配置（固定左上角資訊框與貫穿圖表的十字虛線）
+    # 💡 核心改動 1：使用獨立 Annotation 將資訊框「完美固定」在左上角 (xref="paper", yref="paper")
+    fig.add_annotation(
+        xref="paper", yref="paper",
+        x=0.01, y=0.98,  # 左上角相對位置
+        text=fixed_info_text,
+        showarrow=False,
+        align="left",
+        font=dict(size=12, color="#F0F6FC"),
+        bgcolor="rgba(22, 27, 34, 0.85)",
+        bordercolor="#30363D",
+        borderwidth=1,
+        borderpad=8
+    )
+
+    # 版面配置
     fig.update_layout(
         title=f"<b>{company_name} ({stock_id}) 全功能技術分析圖</b>",
         title_font=dict(size=18, color="#F0F6FC"),
@@ -446,19 +440,12 @@ if st.session_state.data_loaded:
         plot_bgcolor="#0D1117",
         height=720,
         hovermode="x",
-        hoverlabel=dict(
-            bgcolor="rgba(22, 27, 34, 0.95)",
-            font_size=12,
-            font_color="#F0F6FC",
-            align="left",
-            namelength=-1
-        ),
         margin=dict(r=20, t=50, l=20, b=80),
         legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="left", x=0, font=dict(color="#C9D1D9")),
         dragmode="pan"
     )
 
-    # 設定 X 軸（讓十字線貫穿上下的 K 線圖與成交量圖）
+    # 💡 核心改動 2：強制設定雙 X 軸連動與縱向貫穿線
     fig.update_xaxes(
         type='category', 
         tickangle=-45, 
@@ -466,7 +453,7 @@ if st.session_state.data_loaded:
         showgrid=True, 
         gridcolor="#21262D",
         showspikes=True, 
-        spikemode='across',  # 垂直虛線貫穿所有子圖（含成交量）
+        spikemode='across+marker',  # 貫穿全圖
         spikesnap='cursor',
         spikethickness=1, 
         spikecolor='#8B949E', 
@@ -474,7 +461,6 @@ if st.session_state.data_loaded:
         fixedrange=False
     )
 
-    # 設定 Y 軸（包含主圖與成交量圖的橫向十字虛線）
     fig.update_yaxes(
         side="right", title="股價 (TWD)",
         showgrid=True, gridcolor="#21262D",
