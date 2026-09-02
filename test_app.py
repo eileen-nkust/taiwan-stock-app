@@ -243,7 +243,6 @@ stock_id = st.sidebar.text_input("台股代碼", value="2330").strip()
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 時間區間")
 
-# 年份選單：最新年份在最頂部（倒序遞減至 2010 年）
 curr_year = date.today().year
 year_options = list(range(curr_year, 2009, -1))
 month_options = list(range(1, 13))
@@ -339,7 +338,6 @@ if st.session_state.data_loaded:
     st.markdown("---")
     st.markdown("#### AI 幾何型態疊加控制")
 
-    # 在選單文字後方加入多空走勢與 Emoji 標示
     pattern_options = [
         f"{p['date']} {p['name']} [{p['type']} {'📈' if p['type'] == '看多' else '📉'}]" 
         for p in detected_patterns
@@ -362,7 +360,7 @@ if st.session_state.data_loaded:
         key="selected_patterns"
     )
 
-    # Hover 浮動卡片處理
+    # Hover 卡片內容設定
     df['Prev_Close'] = df['Close'].shift(1)
     df['Change'] = df['Close'] - df['Prev_Close']
     df['Pct_Change'] = (df['Change'] / df['Prev_Close']) * 100
@@ -438,7 +436,7 @@ if st.session_state.data_loaded:
     colors = ['#FF4500' if c >= o else '#00FF7F' for c, o in zip(df['Close'], df['Open'])]
     fig.add_trace(go.Bar(x=df.index, y=df['Volume'] / 1000, name="成交量(張)", marker_color=colors, hoverinfo='skip'), row=2, col=1)
 
-    # 圖表版面配置 (包含 hover 框固定左上角)
+    # 版面配置（固定左上角資訊框與貫穿圖表的十字虛線）
     fig.update_layout(
         title=f"<b>{company_name} ({stock_id}) 全功能技術分析圖</b>",
         title_font=dict(size=18, color="#F0F6FC"),
@@ -447,23 +445,20 @@ if st.session_state.data_loaded:
         paper_bgcolor="#161B22",
         plot_bgcolor="#0D1117",
         height=720,
-        hovermode="x unified",  # 設定統一 X 軸 Hover 框
+        hovermode="x",
         hoverlabel=dict(
-            bgcolor="rgba(22, 27, 34, 0.9)",
+            bgcolor="rgba(22, 27, 34, 0.95)",
             font_size=12,
             font_color="#F0F6FC",
             align="left",
             namelength=-1
         ),
-        # 將 Hover 資訊框固定放置在圖表左上方 (x=0.01, y=0.99)
-        hoverdistance=-1,
-        spikedistance=-1,
         margin=dict(r=20, t=50, l=20, b=80),
         legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="left", x=0, font=dict(color="#C9D1D9")),
         dragmode="pan"
     )
 
-    # X 軸設定 (十字虛線穿透上下的主圖與成交量圖)
+    # 設定 X 軸（讓十字線貫穿上下的 K 線圖與成交量圖）
     fig.update_xaxes(
         type='category', 
         tickangle=-45, 
@@ -471,12 +466,38 @@ if st.session_state.data_loaded:
         showgrid=True, 
         gridcolor="#21262D",
         showspikes=True, 
-        spikemode='across+marker',  # across 會讓虛線貫穿上下所有子圖
+        spikemode='across',  # 垂直虛線貫穿所有子圖（含成交量）
         spikesnap='cursor',
         spikethickness=1, 
         spikecolor='#8B949E', 
         spikedash='dash',
         fixedrange=False
+    )
+
+    # 設定 Y 軸（包含主圖與成交量圖的橫向十字虛線）
+    fig.update_yaxes(
+        side="right", title="股價 (TWD)",
+        showgrid=True, gridcolor="#21262D",
+        showspikes=True, spikemode='across', spikethickness=1, spikecolor='#8B949E', spikedash='dash',
+        autorange=True, fixedrange=False, row=1, col=1
+    )
+
+    fig.update_yaxes(
+        side="right", title="成交量 (張)",
+        showgrid=True, gridcolor="#21262D",
+        showspikes=True, spikemode='across', spikethickness=1, spikecolor='#8B949E', spikedash='dash',
+        autorange=True, fixedrange=False, row=2, col=1
+    )
+
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={
+            'scrollZoom': True,
+            'displayModeBar': True,
+            'displaylogo': False,
+            'modeBarButtonsToRemove': ['select2d', 'lasso2d']
+        }
     )
 else:
     st.info("請在左側側邊欄輸入股票代碼與區間，點擊「開始量化分析」按鈕。")
