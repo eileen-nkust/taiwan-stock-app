@@ -235,4 +235,247 @@ month_options = list(range(1, 13))
 
 # 開始日期選擇器
 st.sidebar.markdown("**開始日期**")
-col_s_yr, col_s_mo, col_s_dy = st.sidebar.columns(
+col_s_yr, col_s_mo, col_s_dy = st.sidebar.columns([3, 2, 2])
+default_start_year = curr_year - 2
+s_year = col_s_yr.selectbox("年", year_options, index=year_options.index(default_start_year), key="s_yr", label_visibility="collapsed")
+s_month = col_s_mo.selectbox("月", month_options, index=date.today().month - 1, key="s_mo", label_visibility="collapsed")
+
+max_s_day = calendar.monthrange(s_year, s_month)[1]
+s_day = col_s_dy.selectbox("日", list(range(1, max_s_day + 1)), index=min(date.today().day, max_s_day) - 1, key="s_dy", label_visibility="collapsed")
+start_date_input = date(s_year, s_month, s_day)
+
+# 結束日期選擇器
+st.sidebar.markdown("**結束日期**")
+col_e_yr, col_e_mo, col_e_dy = st.sidebar.columns([3, 2, 2])
+e_year = col_e_yr.selectbox("年", year_options, index=0, key="e_yr", label_visibility="collapsed")
+e_month = col_e_mo.selectbox("月", month_options, index=date.today().month - 1, key="e_mo", label_visibility="collapsed")
+
+max_e_day = calendar.monthrange(e_year, e_month)[1]
+e_day = col_e_dy.selectbox("日", list(range(1, max_e_day + 1)), index=min(date.today().day, max_e_day) - 1, key="e_dy", label_visibility="collapsed")
+end_date_input = date(e_year, e_month, e_day)
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 技術均線 (MA)")
+col_ma1, col_ma2 = st.sidebar.columns(2)
+ma1_val = col_ma1.number_input("MA 1", min_value=1, max_value=240, value=5)
+ma2_val = col_ma2.number_input("MA 2", min_value=1, max_value=240, value=10)
+col_ma3, col_ma4 = st.sidebar.columns(2)
+ma3_val = col_ma3.number_input("MA 3", min_value=1, max_value=240, value=20)
+ma4_val = col_ma4.number_input("MA 4", min_value=1, max_value=240, value=60)
+
+st.sidebar.markdown("<br>", unsafe_allow_html=True)
+if st.sidebar.button("開始量化分析"):
+    if start_date_input >= end_date_input:
+        st.error("「開始日期」必須早於「結束日期」！")
+    else:
+        with st.spinner("正在加載歷史數據並繪製型態..."):
+            try:
+                ticker = f"{stock_id}.TW"
+                start_str = start_date_input.strftime("%Y-%m-%d")
+                end_str = end_date_input.strftime("%Y-%m-%d")
+
+                df = yf.download(ticker, start=start_str, end=end_str)
+                if df.empty:
+                    df = yf.download(f"{stock_id}.TWO", start=start_str, end=end_str)
+
+                if df.empty:
+                    st.error("查無數據，請確認股票代碼！")
+                    st.session_state.data_loaded = False
+                else:
+                    if isinstance(df.columns, pd.MultiIndex):
+                        df.columns = df.columns.get_level_values(0)
+
+                    df.index = df.index.strftime('%Y-%m-%d')
+                    st.session_state.df = df
+                    st.session_state.company_name = get_taiwan_stock_name(stock_id)
+                    st.session_state.detected_patterns = detect_patterns(df)
+                    st.session_state.data_loaded = True
+
+            except Exception as e:
+                st.error(f"資料讀取失敗：{e}")
+                st.session_state.data_loaded = False
+
+# 主畫面渲染
+if st.session_state.data_loaded:
+    df = st.session_state.df.copy()
+    company_name = st.session_state.company_name
+    detected_patterns = st.session_state.detected_patterns
+
+    # 計算均線
+    df[f'MA_{ma1_val}'] = df['Close'].rolling(window=ma1_val).mean()
+    df[f'MA_{ma2_val}'] = df['Close'].rolling(window=ma2_val).mean()
+    df[f'MA_{ma3_val}'] = df['Close'].rolling(window=ma3_val).mean()
+    df[f'MA_{ma4_val}'] = df['Close'].rolling(window=ma4_val).mean()
+
+    # 計算漲跌幅與格式化
+    df['Prev_Close'] = df['Close'].shift(1)
+    df['Change'] = df['Close'] - df['Prev_Close']
+    df['Pct_Change'] = (df['Change'] / df['Prev_Close']) * 100
+
+    # 頂部數據指標卡片
+    latest_close = float(df["Close"].iloc[-1])
+    prev_close = float(df["Close"].iloc[-2]) if len(df) > 1 else latest_close
+    price_change = latest_close - prev_close
+    pct_change = (price_change / prev_close) * 100 if prev_close > 0 else 0
+    latest_vol = int(df["Volume"].iloc[-1]) // 1000
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric(f"{company_name} 最新價", f"${latest_close:.2f}", f"{price_change:+.2f} ({pct_change:+.2f}%)")
+    col2.metric("前日收盤價", f"${prev_close:.2f}")
+    col3.metric("最新成交量", f"{latest_vol:,} 張")
+    col4.metric("區間最高價", f"${df['High'].max():.2f}")
+
+    # 型態控制區塊
+    st.markdown("---")
+    st.markdown("#### AI 幾何型態疊加控制")
+
+    pattern_options = [
+        f"{p['date']} {p['name']} [{p['type']} {'📈' if p['type'] == '看多' else '📉'}]" 
+        for p in detected_patterns
+    ]
+
+    if "selected_patterns" not in st.session_state:
+        st.session_state.selected_patterns = []
+
+    col_b1, col_b2, _ = st.columns([1.2, 1.2, 3.6])
+    with col_b1:
+        if st.button("全選標註"):
+            st.session_state.selected_patterns = pattern_options
+    with col_b2:
+        if st.button("清爽模式"):
+            st.session_state.selected_patterns = []
+
+    selected_options = st.multiselect(
+        "選擇要繪製在圖表上的幾何型態：",
+        options=pattern_options,
+        key="selected_patterns"
+    )
+
+    # 建立雙子圖（強行讓上下兩圖共用同一條 X 軸）
+    fig = make_subplots(
+        rows=2, cols=1, 
+        shared_xaxes=True, 
+        vertical_spacing=0.03, 
+        row_heights=[0.72, 0.28]
+    )
+
+    # 1. K線圖（自訂 Hover 格式，當游標移動時會在左側固定顯示該點數據）
+    vol_in_thousands = df['Volume'] // 1000
+    custom_hover_data = np.stack((df['Change'], df['Pct_Change'], vol_in_thousands), axis=-1)
+
+    fig.add_trace(go.Candlestick(
+        x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
+        increasing_line_color='#FF4500', decreasing_line_color='#00FF7F', name="K線",
+        customdata=custom_hover_data,
+        hovertemplate=(
+            "開盤：%{open:.2f}<br>"
+            "最高：%{high:.2f}<br>"
+            "最低：%{low:.2f}<br>"
+            "收盤：%{close:.2f}<br>"
+            "漲跌：%{customdata[0]:+.2f} (%{customdata[1]:+.2f}%)<br>"
+            "成交量：%{customdata[2]:,} 張<extra></extra>"
+        )
+    ), row=1, col=1)
+
+    # 2. 均線 Trace (設為 hoverinfo='skip' 避免影響 Hover 清爽度)
+    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma1_val}'], mode='lines', name=f'{ma1_val}MA', line=dict(color='#FFD700', width=1.2), hoverinfo='skip'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma2_val}'], mode='lines', name=f'{ma2_val}MA', line=dict(color='#00FFFF', width=1.2), hoverinfo='skip'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma3_val}'], mode='lines', name=f'{ma3_val}MA', line=dict(color='#FF00FF', width=1.5), hoverinfo='skip'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df.index, y=df[f'MA_{ma4_val}'], mode='lines', name=f'{ma4_val}MA', line=dict(color='#1E90FF', width=1.5), hoverinfo='skip'), row=1, col=1)
+
+    # 3. 繪製幾何型態
+    patterns_to_draw = [
+        p for p, opt_str in zip(detected_patterns, pattern_options) 
+        if opt_str in selected_options
+    ]
+    for p in patterns_to_draw:
+        if p["skeleton_x"]:
+            fig.add_trace(go.Scatter(
+                x=p["skeleton_x"], y=p["skeleton_y"], mode='lines+markers',
+                name=f"{p['name']}", line=dict(color=p["skeleton_color"], width=2.5),
+                marker=dict(size=6, color=p["skeleton_color"]), hoverinfo='skip'
+            ), row=1, col=1)
+
+        if p["neck_x"]:
+            fig.add_trace(go.Scatter(
+                x=p["neck_x"], y=p["neck_y"], mode='lines',
+                name=f"{p['name']} 頸線", line=dict(color=p["neck_color"], width=1.8, dash="dash"),
+                hoverinfo='skip'
+            ), row=1, col=1)
+
+        for ann in p.get("annotations", []):
+            fig.add_annotation(
+                x=ann["x"], y=ann["y"], text=ann["text"],
+                showarrow=True, arrowhead=2, arrowcolor=ann["color"],
+                font=dict(color="#FFFFFF", size=11), bgcolor=ann["color"], row=1, col=1
+            )
+
+    # 4. 下方成交量圖
+    colors = ['#FF4500' if c >= o else '#00FF7F' for c, o in zip(df['Close'], df['Open'])]
+    fig.add_trace(go.Bar(
+        x=df.index, y=df['Volume'] / 1000, name="成交量(張)", 
+        marker_color=colors, hoverinfo='skip'
+    ), row=2, col=1)
+
+    # 💡 核心修改 1：使用 hovermode="x unified" 讓 Hover 鎖定在最左側不跟著游標亂飄
+    fig.update_layout(
+        title=f"<b>{company_name} ({stock_id}) 全功能技術分析圖</b>",
+        title_font=dict(size=18, color="#F0F6FC"),
+        xaxis_rangeslider_visible=False,
+        template="plotly_dark",
+        paper_bgcolor="#161B22",
+        plot_bgcolor="#0D1117",
+        height=720,
+        margin=dict(r=20, t=50, l=20, b=80),
+        legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="left", x=0, font=dict(color="#C9D1D9")),
+        dragmode="pan",
+        hovermode="x unified",
+        hoverlabel=dict(
+            bgcolor="rgba(22, 27, 34, 0.9)",
+            font_size=12,
+            font_color="#F0F6FC"
+        )
+    )
+
+    # 💡 核心修改 2：設定 spikemode='across' 與 spikesnap='cursor' 讓虛線垂直貫穿下方量圖
+    fig.update_xaxes(
+        type='category', 
+        tickangle=-45, 
+        nticks=12,
+        showgrid=True, 
+        gridcolor="#21262D",
+        showspikes=True, 
+        spikemode='across',       # 貫穿上方 K 線與下方成交量圖
+        spikesnap='cursor',       # 垂直虛線完全跟隨游標動態位置
+        spikethickness=1, 
+        spikecolor='#8B949E', 
+        spikedash='dash',
+        fixedrange=False
+    )
+
+    fig.update_yaxes(
+        side="right", title="股價 (TWD)",
+        showgrid=True, gridcolor="#21262D",
+        showspikes=True, spikemode='across', spikethickness=1, spikecolor='#8B949E', spikedash='dash',
+        autorange=True, fixedrange=False, row=1, col=1
+    )
+
+    fig.update_yaxes(
+        side="right", title="成交量 (張)",
+        showgrid=True, gridcolor="#21262D",
+        showspikes=True, spikemode='across', spikethickness=1, spikecolor='#8B949E', spikedash='dash',
+        autorange=True, fixedrange=False, row=2, col=1
+    )
+
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={
+            'scrollZoom': True,
+            'displayModeBar': True,
+            'displaylogo': False,
+            'modeBarButtonsToRemove': ['select2d', 'lasso2d']
+        }
+    )
+else:
+    st.info("請在左側側邊欄輸入股票代碼與區間，點擊「開始量化分析」按鈕。")
